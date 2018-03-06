@@ -59,15 +59,15 @@ Describe 'HTML Basic Conversion' {
     It 'Can parse an HTML file' {
         ConvertFrom-Html -Path $testFilePath1 | Should Be HtmlAgilityPack.HTMLNode
     }
-    It 'Can parse an HTML file piped from Get-Item' {
-        Get-Item $testFilePath1 | ConvertFrom-Html | Should Be HtmlAgilityPack.HTMLNode
-    }
     It 'Can parse multiple HTML files' {
         $result = ConvertFrom-Html -Path $testFilePath1,$testFilePath2
         $result.count | Should Be 2
         foreach ($resultItem in $result) {
             $resultItem | Should Be HtmlAgilityPack.HTMLNode
         }
+    }
+    It 'Can parse an HTML file piped from Get-Item' {
+        Get-Item $testFilePath1 | ConvertFrom-Html | Should Be HtmlAgilityPack.HTMLNode
     }
     It 'Can parse multiple HTML files piped from Get-Item' {
         $result = Get-Item $testFilePathAll | ConvertFrom-Html
