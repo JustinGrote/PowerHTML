@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Configuration>
+<ViewDefinitions>
+<View>
+  <Name>HtmlAgilityPack.HtmlNode</Name>
+  <ViewSelectedBy>
+    <TypeName>HtmlAgilityPack.HtmlNode</TypeName>
+    <TypeName>HtmlAgilityPack.HtmlTextNode</TypeName>
+    <TypeName>HtmlAgilityPack.HtmlCommentNode</TypeName>
+  </ViewSelectedBy>
+  <TableControl>
+    <TableHeaders>
+      <TableColumnHeader/>
+      <TableColumnHeader/>
+      <TableColumnHeader>
+        <Label>AttributeCount</Label>
+      </TableColumnHeader>
+      <TableColumnHeader>
+        <Label>ChildNodeCount</Label>
+      </TableColumnHeader>
+      <TableColumnHeader>
+        <Label>ContentLength</Label>
+      </TableColumnHeader>
+      <TableColumnHeader/>
+    </TableHeaders>
+    <TableRowEntries>
+      <TableRowEntry>
+        <TableColumnItems>
+          <TableColumnItem>
+            <PropertyName>NodeType</PropertyName>
+          </TableColumnItem>
+          <TableColumnItem>
+            <PropertyName>Name</PropertyName>
+          </TableColumnItem>
+          <TableColumnItem>
+            <ScriptBlock>$PSItem.Attributes.Count</ScriptBlock>
+          </TableColumnItem>
+          <TableColumnItem>
+            <ScriptBlock>$PSItem.ChildNodes.Count</ScriptBlock>
+          </TableColumnItem>
+          <TableColumnItem>
+            <ScriptBlock>$PSItem.InnerHTML.Length</ScriptBlock>
+          </TableColumnItem>
+          <TableColumnItem>
+            <PropertyName>InnerText</PropertyName>
+          </TableColumnItem>
+        </TableColumnItems>
+      </TableRowEntry>
+    </TableRowEntries>
+  </TableControl>
+</View>
+</ViewDefinitions>
+</Configuration>
