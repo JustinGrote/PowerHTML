@@ -36,10 +36,9 @@ Describe 'HTML Basic Conversion' {
 "@
 
     #Generate test files to a random path
-    $guid = [GUID]::NewGuid().guid
-    $testFilePath1 = "$env:temp/pester-$guid.htmltest"
-    $testFilePath2 = "$env:temp/pester-$guid`2.htmltest"
-    $testFilePathAll = "$env:temp/pester-$guid`*"
+    $testFilePath1 = [System.IO.Path]::GetTempFileName()
+    $testFilePath2 = [System.IO.Path]::GetTempFileName()
+    $testFilePathAll = $testFilePath1,$testFilePath2
     $HTMLString > $testFilePath1
     $HTMLString > $testFilePath2
 
