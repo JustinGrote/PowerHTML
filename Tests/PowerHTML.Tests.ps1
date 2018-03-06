@@ -43,10 +43,10 @@ Describe 'HTML Basic Conversion' {
     $HTMLString > $testFilePath1
     $HTMLString > $testFilePath2
 
-    It 'Can convert a basic HTML string to a raw HTMLDocument via the pipeline' {
+    It 'Can convert an HTML string to a raw HTMLDocument via the pipeline' {
         $HTMLString | ConvertFrom-HTML -Raw | Should Be HtmlAgilityPack.HTMLDocument
     }
-    It 'Can parse a basic HTML string to a HtmlNode via the pipeline' {
+    It 'Can parse an HTML string to a HtmlNode via the pipeline' {
         $HTMLString | ConvertFrom-HTML | Should Be HtmlAgilityPack.HTMLNode
     }
     It 'Can parse multiple HTML strings to HtmlNodes when passed via the pipeline as an array' {
