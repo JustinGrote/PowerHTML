@@ -1,7 +1,7 @@
 #Move out of tests to the subdirectory of the modulepwd
 if ((get-item .).Name -match 'Tests') {Set-Location $PSScriptRoot\..}
 
-$ModuleName = 'PowerHAP'
+$ModuleName = 'PowerHTML'
 $ModuleManifestName = "$ModuleName.psd1"
 $ModuleManifestPath = "$PSScriptRoot\..\$ModuleManifestName"
 Describe 'Module Integrity' {

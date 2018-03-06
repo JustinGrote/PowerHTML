@@ -9,7 +9,7 @@
 @{
 
 # Script module or binary module file associated with this manifest.
-RootModule = 'PowerHAP.psm1'
+RootModule = 'PowerHTML.psm1'
 
 # Version number of this module.
 ModuleVersion = '0.0.1'
@@ -21,13 +21,13 @@ ModuleVersion = '0.0.1'
 GUID = '5be91c3d-59a7-469b-bca7-bdc619347b64'
 
 # Author of this module
-Author = 'JGrote'
+Author = 'Justin Grote'
 
 # Company or vendor of this module
-CompanyName = 'Unknown'
+CompanyName = 'Unspecified'
 
 # Copyright statement for this module
-Copyright = '(c) 2018 JGrote. All rights reserved.'
+Copyright = '(c) 2018 Justin Grote. All rights reserved.'
 
 # Description of the functionality provided by this module
 # Description = ''
