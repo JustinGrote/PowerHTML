@@ -2,10 +2,10 @@
 $PSVersion = $PSVersionTable.PSVersion.Major
 $BuildOutputProject = Join-Path $env:BHBuildOutput $env:BHProjectName
 
-Describe "$env:BHProjectName Module Build" {
+Describe "Module Build" {
     $ModuleManifestPath = Join-Path $BuildOutputProject "\*.psd1"
 
-    Context "Powershell Module - $ModuleManifestPath" {
+    Context "$env:BHProjectName" {
         $ModuleName = $env:BHProjectName
         It "Has a valid Module Manifest" {
             if ($isCoreCLR) {
