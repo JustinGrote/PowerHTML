@@ -252,9 +252,10 @@ task UpdateMetadata CopyFilesToBuildDir,Version,{
 #Pester Testing
 task Pester {
     write-verboseheader "Starting Pester Tests..."
+    $PesterResultFile = "$($env:BHBuildOutput)\$($env:BHProjectName)-TestResults_PS$PSVersion`_$TimeStamp.xml"
 
     $PesterParams = @{
-        OutputFile = "$($env:BHBuildOutput)\$($env:BHProjectName)-TestResults_PS$PSVersion`_$TimeStamp.xml"
+        OutputFile = $PesterResultFile
         OutputFormat = "NunitXML"
         PassThru = $true
     }
