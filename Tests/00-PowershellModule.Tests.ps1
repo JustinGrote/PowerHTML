@@ -58,3 +58,10 @@ Describe "Module Build" {
         }
     }
 }
+
+Describe "PSScriptAnalyzer" {
+    $results = Invoke-ScriptAnalyzer -Path $BuildOutputProject -Recurse -ExcludeRule "PSAvoidUsingCmdletAliases"
+    It 'PSScriptAnalyzer returns zero errors for all files in the repository' {
+        $results.Count | Should Be 0
+    }
+}
