@@ -1,0 +1,29 @@
+# See http://www.appveyor.com/docs/appveyor-yml for many more options
+version: '{build}-{branch}'
+
+#Publish to PowerShell Gallery with this key
+environment:
+  NuGetApiKey:
+    secure: HncD30pn+cWRepdP28pyB1l4BNg3x3MdvcNV8EysOhQ5kBFMHVyXiQM0whuUW78P
+
+image: Visual Studio 2015
+install:
+  - ps: Install-Module -Name Pester,PSScriptAnalyzer,BuildHelpers,InvokeBuild -Confirm:$false -Force -ErrorAction Stop -SkipPublisherCheck
+
+# Skip on updates to the readme.
+# We can force this by adding [skip ci] or [ci skip] anywhere in commit message
+skip_commits:
+  message: /updated readme.*|update readme.*s/
+
+#Kick off the CI/CD pipeline. We do test and build in the same script
+#To be portable to non-Appveyor builds
+#We run it at the test step so that we can upload test results back to the system.
+build: false
+test_script:
+  - ps: Invoke-Build
+
+deploy: false
+
+on_finish:
+#If "AppveyorRDPDebug" is in the commit message, open an RDP session to investigate after build.
+  - ps: if ($env:APPVEYOR_REPO_COMMIT_MESSAGE -match 'AppveyorRDPDebug') {$blockRdp = $true; iex ((new-object net.webclient).DownloadString('https://raw.githubusercontent.com/appveyor/ci/master/scripts/enable-rdp.ps1'))}

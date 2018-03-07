@@ -4,15 +4,6 @@ if ((get-item .).Name -match 'Tests') {Set-Location $PSScriptRoot\..}
 $ModuleName = 'PowerHTML'
 $ModuleManifestName = "$ModuleName.psd1"
 $ModuleManifestPath = "$PSScriptRoot\..\$ModuleManifestName"
-Describe 'Module Integrity' {
-    It 'Passes Test-ModuleManifest' {
-        Test-ModuleManifest -Path $ModuleManifestPath | Should Not BeNullOrEmpty
-        $? | Should Be $true
-    }
-    It 'Can Be Imported as a module' {
-        (Import-Module -Force -Name $PSScriptRoot\.. -PassThru).Name | Should Be $ModuleName
-    }
-}
 
 Describe 'HTML Basic Conversion' {
     $HTMLString = @"
@@ -38,7 +29,7 @@ Describe 'HTML Basic Conversion' {
     #Generate test files to a random path
     $testFilePath1 = [System.IO.Path]::GetTempFileName()
     $testFilePath2 = [System.IO.Path]::GetTempFileName()
-    $testFilePathAll = $testFilePath1,$testFilePath2
+    $testFilePathAll = @($testFilePath1,$testFilePath2)
     $HTMLString > $testFilePath1
     $HTMLString > $testFilePath2
 
