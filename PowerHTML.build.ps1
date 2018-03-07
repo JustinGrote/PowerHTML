@@ -187,6 +187,8 @@ task Version {
 #Copy all powershell module "artifacts" to Build Directory
 task CopyFilesToBuildDir {
     $FilesToCopy = "Public","Private","lib","Types","$($Env:BHProjectName).psm1","$($Env:BHProjectName).psd1",".\LICENSE","README.md"
+    #Make sure we are in the project location in case somethign changed
+    Set-Location $ENV:BHProjectPath
     copy-item -Recurse -Path $FilesToCopy -Destination $ProjectBuildPath @PassThruParams
 }
 
