@@ -1,7 +1,6 @@
 #requires -module BuildHelpers
 $PSVersion = $PSVersionTable.PSVersion.Major
 $BuildOutputProject = Join-Path $env:BHBuildOutput $env:BHProjectName
-
 Describe "Module Build" {
     $ModuleManifestPath = Join-Path $BuildOutputProject "\*.psd1"
 
@@ -37,8 +36,8 @@ Describe "Module Build" {
         }
 
         It 'Exports all public functions' {
-            $FunctionFiles = Get-ChildItem "$BuildOutputProject\Public" -Filter *.ps1 | Select -ExpandProperty BaseName
-            $FunctionNames = $FunctionFiles | foreach {$_ -replace '-', "-$($Manifest.Prefix)"}
+            $FunctionFiles = Get-ChildItem "$BuildOutputProject\Public" -Filter *.ps1 | Select-Object -ExpandProperty BaseName
+            $FunctionNames = $FunctionFiles | ForEach-Object {$_ -replace '-', "-$($Manifest.Prefix)"}
             $ExFunctions = $Manifest.ExportedFunctions.Values.Name
             foreach ($FunctionName in $FunctionNames)
             {
