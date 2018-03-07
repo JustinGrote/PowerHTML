@@ -33,7 +33,7 @@ Enter-Build {
         if (-not (Get-module $BuildHelperModuleItem -listavailable)) {
             write-verbose "Installing $BuildHelperModuleItem from Powershell Gallery to your currentuser module directory"
             install-module -scope currentuser -Name $BuildHelperModuleItem -ErrorAction stop
-            if ($PSVersionTable.PSVersion -lt 5) {
+            if ($PSVersionTable.PSVersion.Major -lt 5) {
                 write-verboseheader "Bootstrapping Powershell Module: $BuildHelperModuleItem"
                 Invoke-Command -ArgumentList @(, $BuildHelperModules) -ScriptBlock ([scriptblock]::Create((new-object net.webclient).DownloadString('https://git.io/PSModBootstrap')))
             } else {
