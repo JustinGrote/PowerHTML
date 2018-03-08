@@ -21,7 +21,7 @@ skip_commits:
 #To be portable to non-Appveyor builds
 #We run it at the test step so that we can upload test results back to the system.
 build_script:
-  - ps: Invoke-Build Build
+  - ps: Invoke-Build Build,Package
 test_script:
   - ps: Invoke-Build Test
 
