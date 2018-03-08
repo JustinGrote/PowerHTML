@@ -324,7 +324,7 @@ task Package Version,{
 
     #If we are in Appveyor, push completed zip to Appveyor Artifact
     if ($env:APPVEYOR) {
-        write-host -ForegroundColor Green "Detected Appveyor, pushing Powershell Module archive to Artifacts"
+        write-build Green "Detected Appveyor, pushing Powershell Module archive to Artifacts"
         Push-AppveyorArtifact $ZipArchivePath
     }
 }

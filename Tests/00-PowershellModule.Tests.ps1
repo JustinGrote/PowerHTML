@@ -3,10 +3,9 @@ if (-not (import-module BuildHelpers -PassThru -erroraction silentlycontinue)) {
     install-module buildhelpers -scope currentuser -erroraction stop -force
     import-module BuildHelpers -erroraction stop
 }
-
+Set-BuildEnvironment -force
 $PSVersion = $PSVersionTable.PSVersion.Major
 $BuildOutputProject = Join-Path $env:BHBuildOutput $env:BHProjectName
-
 Describe 'Powershell Module' {
     $ModuleManifestPath = Join-Path $BuildOutputProject '\*.psd1'
     Context "$env:BHProjectName" {
@@ -67,8 +66,9 @@ Describe 'Powershell Module' {
 }
 
 Describe 'PSScriptAnalyzer' {
-    $results = Invoke-ScriptAnalyzer -Path $BuildOutputProject -Recurse -ExcludeRule "PSAvoidUsingCmdletAliases" -Verbose:$false
+    $results = Invoke-ScriptAnalyzer -Path $BuildOutputProject -Recurse -ExcludeRule "PSAvoidUsingCmdletAliases","PSAvoidGlobalVars" -Verbose:$false
     It 'PSScriptAnalyzer returns zero errors for all files in the repository' {
+        $results
         $results.Count | Should Be 0
     }
 }
