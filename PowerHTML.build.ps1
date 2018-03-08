@@ -6,7 +6,7 @@
 
 #This variable specifies what modules to bootstrap for the build
 #It is recommended to only bootstrap BuildHelpers and PSDepend, and use PSDepend for remaining prereqs
-$BuildHelperModules = "BuildHelpers", "PSDepend", "Pester", "powershell-yaml", "Microsoft.Powershell.Archive"
+$BuildHelperModules = "BuildHelpers", "PSDepend", "Pester", "powershell-yaml", "Microsoft.Powershell.Archive", "PSScriptAnalyzer"
 
 #Initialize Build Environment
 Enter-Build {
@@ -20,24 +20,34 @@ Enter-Build {
     }
 
     #Detect if we are in a continuous integration environment (Appveyor, etc.) or otherwise running noninteractively
-    if ($ENV:CI -or ([Environment]::GetCommandLineArgs() -like '^-noni*')) {
+    if ($ENV:CI -or ([Environment]::GetCommandLineArgs() -like '-noni*')) {
         write-build Green 'Detected a Noninteractive or CI environment, disabling prompt confirmations'
         $SCRIPT:CI = $true
         $ConfirmPreference = 'None'
+        $ProgressPreference = "SilentlyContinue"
     }
 
     #Fetch Build Helper Modules using Install-ModuleBootstrap script (works in PSv3/4)
     #The comma in ArgumentList a weird idiosyncracy to make sure a nested array is created to ensure Argumentlist
     #doesn't unwrap the buildhelpermodules as individual arguments
+    #We suppress verbose output for master builds (because they should have already been built once cleanly)
+
     foreach ($BuildHelperModuleItem in $BuildHelperModules) {
         if (-not (Get-module $BuildHelperModuleItem -listavailable)) {
             write-verbose "Installing $BuildHelperModuleItem from Powershell Gallery to your currentuser module directory"
-            install-module -scope currentuser -Name $BuildHelperModuleItem -ErrorAction stop
             if ($PSVersionTable.PSVersion.Major -lt 5) {
                 write-verboseheader "Bootstrapping Powershell Module: $BuildHelperModuleItem"
                 Invoke-Command -ArgumentList @(, $BuildHelperModules) -ScriptBlock ([scriptblock]::Create((new-object net.webclient).DownloadString('https://git.io/PSModBootstrap')))
             } else {
-
+                $installModuleParams = @{
+                    Scope = "CurrentUser"
+                    Name = $BuildHelperModuleItem
+                    ErrorAction = "Stop"
+                }
+                if ($SCRIPT:CI) {
+                    $installModuleParams.Force = $true
+                }
+                install-module @installModuleParams
             }
         }
     }
@@ -46,8 +56,14 @@ Enter-Build {
     $Timestamp = Get-date -uformat "%Y%m%d-%H%M%S"
     $PSVersion = $PSVersionTable.PSVersion.Major
     Set-BuildEnvironment -force
+    write-build Green "Current Branch Name: $BranchName"
 
     $PassThruParams = @{}
+    if ( ($VerbosePreference -ne 'SilentlyContinue') -or ($CI -and ($BranchName -ne 'master')) ) {
+        write-build Green "Verbose Build Logging Enabled"
+        $SCRIPT:VerbosePreference = "Continue"
+        $PassThruParams.Verbose = $true
+    }
 
     #If the branch name is master-test, run the build like we are in "master"
     if ($env:BHBranchName -eq 'master-test') {
@@ -55,13 +71,6 @@ Enter-Build {
         $SCRIPT:BranchName = "master"
     } else {
         $SCRIPT:BranchName = $env:BHBranchName
-    }
-
-    #We suppress verbose output for master builds (because they should have already been built once cleanly)
-    if ( ($VerbosePreference -ne 'SilentlyContinue') -or ($CI -and ($BranchName -ne 'master')) ) {
-        write-build Green "Verbose Build Logging Enabled"
-        $SCRIPT:VerbosePreference = "Continue"
-        $PassThruParams.Verbose = $true
     }
 
     write-verboseheader "Build Environment Prepared! Environment Information:"
@@ -86,10 +95,17 @@ Enter-Build {
         Get-PackageProvider Nuget @PassThruParams | format-list | out-string | write-verbose
     }
 
+    #Fix a bug with the Appveyor 2017 image having a broken nuget (points to v3 URL but installed packagemanagement doesn't query v3 correctly)
+    #Next command will add this back
+    if ($ENV:APPVEYOR -and ($ENV:APPVEYOR_BUILD_WORKER_IMAGE -eq 'Visual Studio 2017')) {
+        write-verbose "Detected Appveyor VS2017 Image, using v2 Nuget API"
+        UnRegister-PackageSource -Name nuget.org
+    }
+
     #Add the nuget repository so we can download things like GitVersion
     if (!(Get-PackageSource "nuget.org" -erroraction silentlycontinue)) {
         write-verbose "Registering nuget.org as package source"
-        Register-PackageSource -provider NuGet -name nuget.org -location http://www.nuget.org/api/v2 -Trusted @PassThruParams  | out-string | out-verbose
+        Register-PackageSource -provider NuGet -name nuget.org -location http://www.nuget.org/api/v2 -Trusted @PassThruParams  | out-string | write-verbose
     }
     else {
         $nugetOrgPackageSource = Set-PackageSource -name 'nuget.org' -Trusted @PassThruParams
@@ -97,11 +113,10 @@ Enter-Build {
             write-verboseheader "Nuget.Org Package Source Info "
             $nugetOrgPackageSource | format-table | out-string | write-verbose
         }
-
     }
 
     #Move to the Project Directory if we aren't there already
-    Set-Location $ENV:BHProjectPath
+    Set-Location $buildRoot
 
     #Define the Project Build Path
     $SCRIPT:ProjectBuildPath = $ENV:BHBuildOutput + "\" + $ENV:BHProjectName
@@ -111,18 +126,17 @@ Enter-Build {
 task Clean {
     #Reset the BuildOutput Directory
     if (test-path $env:BHBuildOutput) {
-        write-verbose "Removing and resetting $($ENV:BHBuildOutput)"
+        Write-Verbose "Removing and resetting Build Output Path: $($ENV:BHBuildOutput)"
         remove-item $env:BHBuildOutput -Recurse -Force @PassThruParams
     }
-    New-Item -ItemType Directory $ProjectBuildPath -force | % FullName | out-string | write-verbose
-
+    New-Item -ItemType Directory $ProjectBuildPath -force | ForEach-Object FullName | out-string | write-verbose
     #Unmount any modules named the same as our module
 
 }
 
 task Version {
     #This task determines what version number to assign this build
-    $GitVersionConfig = "$env:BHProjectPath/GitVersion.yml"
+    $GitVersionConfig = "$buildRoot/GitVersion.yml"
 
     #Fetch GitVersion
     #TODO: Use Nuget.exe to fetch to make this v3/v4 compatible
@@ -130,10 +144,10 @@ task Version {
     if (!(Get-Package $GitVersionCMDPackageName -erroraction SilentlyContinue)) {
         write-verbose "Package $GitVersionCMDPackageName Not Found Locally, Installing..."
         write-verboseheader "Nuget.Org Package Source Info for fetching Gitversion"
-        Get-PackageSource | ft | out-string | write-verbose
+        Get-PackageSource | Format-Table | out-string | write-verbose
 
         #Fetch GitVersion
-        Install-Package $GitVersionCMDPackageName -scope currentuser -source 'nuget.org' -force @PassThruParams
+        Install-Package $GitVersionCMDPackageName -scope currentuser -source 'nuget.org' -force @PassThruParams | Out-Null
     }
     $GitVersionEXE = ((get-package $GitVersionCMDPackageName).source | split-path -Parent) + "\tools\GitVersion.exe"
 
@@ -142,7 +156,7 @@ task Version {
     if (Test-Path $env:BHPSModuleManifest) {
         write-verbose "Fetching Version from Powershell Module Manifest (if present)"
         $ModuleManifestVersion = [Version](Get-Metadata $env:BHPSModuleManifest)
-        if (Test-Path $env:BHProjectPath/GitVersion.yml) {
+        if (Test-Path $buildRoot/GitVersion.yml) {
             $GitVersionConfigYAML = [ordered]@{}
             #ConvertFrom-YAML returns as individual key-value hashtables, we need to combine them into a single hashtable
             (Get-Content $GitVersionConfig | ConvertFrom-Yaml) | foreach-object {$GitVersionConfigYAML += $PSItem}
@@ -156,14 +170,14 @@ task Version {
 
     #Calcuate the GitVersion
     write-verbose "Executing GitVersion to determine version info"
-    $GitVersionOutput = & $GitVersionEXE $env:BHProjectPath
+    $GitVersionOutput = & $GitVersionEXE $buildRoot
 
     #Since GitVersion doesn't return error exit codes, we look for error text in the output in the output
-    if ($GitVersionOutput -match '^[ERROR|INFO] \[') {throw "An error occured when running GitVersion.exe $env:BHProjectPath"}
+    if ($GitVersionOutput -match '^[ERROR|INFO] \[') {throw "An error occured when running GitVersion.exe $buildRoot"}
     try {
         $GitVersionInfo = $GitVersionOutput | ConvertFrom-JSON -ErrorAction stop
     } catch {
-        throw "There was an error when running GitVersion.exe $env:BHProjectPath. The output of the command (if any) follows:"
+        throw "There was an error when running GitVersion.exe $buildRoot. The output of the command (if any) follows:"
         $GitVersionOutput
     }
 
@@ -186,9 +200,12 @@ task Version {
 
 #Copy all powershell module "artifacts" to Build Directory
 task CopyFilesToBuildDir {
-    $FilesToCopy = "Public","Private","lib","Types","$($Env:BHProjectName).psm1","$($Env:BHProjectName).psd1",".\LICENSE","README.md"
-    #Make sure we are in the project location in case somethign changed
-    Set-Location $ENV:BHProjectPath
+    #Make sure we are in the project location in case somethign changedf
+    Set-Location $buildRoot
+
+    #The file or file paths to copy, excluding the powershell psm1 and psd1 module and manifest files which will be autodetected
+    #TODO: Move this somewhere higher in the hierarchy into a settings file, or rather go the "exclude" route
+    $FilesToCopy = "lib","Public","Private","Types","LICENSE","README.md","$($Env:BHProjectName).psm1","$($Env:BHProjectName).psd1"
     copy-item -Recurse -Path $FilesToCopy -Destination $ProjectBuildPath @PassThruParams
 }
 
@@ -212,7 +229,6 @@ task UpdateMetadata CopyFilesToBuildDir,Version,{
     Update-Metadata -Path $ProjectBuildManifest -PropertyName ModuleVersion -Value $ProjectBuildVersion
 
     # Are we in the master or develop/development branch? Bump the version based on the powershell gallery if so, otherwise add a build tag
-    write-build Yellow "BranchName: $BranchName"
     if ($BranchName -match '^(master|dev(elop)?(ment)?)$') {
         write-build Green "In Master/Develop branch, adding Tag Version $ProjectBuildVersion to this build"
         $Script:ProjectVersion = $ProjectBuildVersion
@@ -234,11 +250,24 @@ task UpdateMetadata CopyFilesToBuildDir,Version,{
     } else {
         write-build Green "Not in Master/Develop branch, marking this as a feature prelease build"
         $Script:ProjectVersion = $ProjectSemVersion
-        if (-not (git tag -l "$ProjectSemVersion")) {
-            exec { git tag "$ProjectSemVersion" -a -m "Automatic GitVersion Prerelease Tag Generated by Invoke-Build" }
-        } else {
-            write-warning "Tag $ProjectSemVersion already exists. This is normal if you are running multiple builds on the same commit, otherwise this should not happen"
+        #Set an email address for tag commit to work if it isn't already present
+        if (-not (git config user.email)) {
+            git config user.email "buildtag@$env:ComputerName"
+            $tempTagGitEmailSet = $true
         }
+        try {
+            $gitVersionTag = "v$ProjectSemVersion"
+            if (-not (git tag -l $gitVersionTag)) {
+                exec { git tag "$gitVersionTag" -a -m "Automatic GitVersion Prerelease Tag Generated by Invoke-Build" }
+            } else {
+                write-warning "Tag $gitVersionTag already exists. This is normal if you are running multiple builds on the same commit, otherwise this should not happen"
+            }
+        } finally {
+            if ($tempTagGitEmailSet) {
+                git config --unset user.email
+            }
+        }
+
 
         #Create an empty file in the root directory of the module for easy identification that its not a valid release.
         "This is a prerelease build and not meant for deployment!" > (Join-Path $ProjectBuildPath "PRERELEASE-$ProjectSemVersion")
@@ -255,6 +284,7 @@ task Pester {
     $PesterResultFile = "$($env:BHBuildOutput)\$($env:BHProjectName)-TestResults_PS$PSVersion`_$TimeStamp.xml"
 
     $PesterParams = @{
+        Script = "Tests"
         OutputFile = $PesterResultFile
         OutputFormat = "NunitXML"
         PassThru = $true
@@ -266,13 +296,13 @@ task Pester {
         $PesterParams.PesterOption = (new-pesteroption -IncludeVSCodeMarker)
     }
 
-    $PesterResult = Invoke-Pester @PesterParams
+    Invoke-Pester @PesterParams | Out-Null
 
     # In Appveyor?  Upload our test results!
     If ($ENV:APPVEYOR) {
         $UploadURL = "https://ci.appveyor.com/api/testresults/nunit/$($env:APPVEYOR_JOB_ID)"
         write-verbose "Detected we are running in AppVeyor"
-        write-verbose "Uploading Pester Results to $UploadURL"
+        write-verbose "Uploading Pester Results to Appveyor: $UploadURL"
         (New-Object 'System.Net.WebClient').UploadFile(
             "https://ci.appveyor.com/api/testresults/nunit/$($env:APPVEYOR_JOB_ID)",
             $PesterResultFile )
@@ -286,7 +316,7 @@ task Pester {
     "`n"
 }
 
-task PackageArtifacts Version,{
+task Package Version,{
     $ZipArchivePath = (join-path $env:BHBuildOutput "$env:BHProjectName-$ProjectVersion.zip")
     write-build green "Writing Finished Module to $ZipArchivePath"
     #Package the Powershell Module
@@ -300,7 +330,7 @@ task PackageArtifacts Version,{
 }
 
 #Deploy Supertask
-task Deploy PackageArtifacts
+task Deploy Package
 
 #Build SuperTask
 task Build Clean,CopyFilesToBuildDir,UpdateMetadata
