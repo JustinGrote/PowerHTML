@@ -280,6 +280,10 @@ task UpdateMetadata CopyFilesToBuildDir,Version,{
 
 #Pester Testing
 task Pester {
+    $BuildOutputProject = Join-Path $env:BHBuildOutput $env:BHProjectName
+    $ModuleManifestPath = Join-Path $BuildOutputProject '\*.psd1'
+    if (-not (Test-Path $ModuleManifestPath)) {throw "Module Manifest not found at $ModuleManifestPath. Did you run 'Invoke-Build Build' first?"}
+
     write-verboseheader "Starting Pester Tests..."
     $PesterResultFile = "$($env:BHBuildOutput)\$($env:BHProjectName)-TestResults_PS$PSVersion`_$TimeStamp.xml"
 
