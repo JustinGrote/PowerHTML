@@ -41,22 +41,27 @@
     "tasks": [
         {
             "label": "Test",
-            "group": "test",
 
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            },
             "windows": {
-                "command": "powershell.exe",
+                "command": "powershell.exe"
             },
             "osx": {
-                "command": "pwsh",
+                "command": "pwsh"
             },
             "linux": {
-                "command": "pwsh",
+                "command": "pwsh"
             },
             "args": [
                 "-NoProfile",
                 "-NonInteractive",
-                "-ExecutionPolicy", "Bypass",
-                "-Command", "Invoke-Build -Verbose Test"
+                "-ExecutionPolicy",
+                "Bypass",
+                "-Command",
+                "Invoke-Build -Verbose Test"
             ],
             "problemMatcher": "$pester"
         },
@@ -67,8 +72,49 @@
             "args": [
                 "-NoProfile",
                 "-NonInteractive",
-                "-ExecutionPolicy", "Bypass",
-                "-Command", "Invoke-Build -Verbose Test"
+                "-ExecutionPolicy",
+                "Bypass",
+                "-Command",
+                "Invoke-Build -Verbose Test"
+            ],
+            "problemMatcher": "$pester"
+        },
+        {
+            "label": "Build",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "windows": {
+                "command": "powershell.exe"
+            },
+            "osx": {
+                "command": "pwsh"
+            },
+            "linux": {
+                "command": "pwsh"
+            },
+            "args": [
+                "-NoProfile",
+                "-NonInteractive",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-Command",
+                "Invoke-Build Build"
+            ],
+            "problemMatcher": "$pester"
+        },
+        {
+            "label": "Build-on-PSCore",
+            "group": "build",
+            "command": "pwsh",
+            "args": [
+                "-NoProfile",
+                "-NonInteractive",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-Command",
+                "Invoke-Build Build"
             ],
             "problemMatcher": "$pester"
         }

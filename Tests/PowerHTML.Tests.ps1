@@ -4,7 +4,6 @@ if ((get-item .).Name -match 'Tests') {Set-Location $PSScriptRoot\..}
 $ModuleName = 'PowerHTML'
 $ModuleManifestName = "$ModuleName.psd1"
 $ModuleManifestPath = "$PSScriptRoot\..\$ModuleManifestName"
-
 Describe 'HTML Basic Conversion' {
     $HTMLString = @"
     <!DOCTYPE html>

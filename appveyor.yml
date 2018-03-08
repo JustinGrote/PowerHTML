@@ -6,9 +6,11 @@ environment:
   NuGetApiKey:
     secure: HncD30pn+cWRepdP28pyB1l4BNg3x3MdvcNV8EysOhQ5kBFMHVyXiQM0whuUW78P
 
-image: Visual Studio 2015
+image:
+  - Visual Studio 2015
+  - Visual Studio 2017
 install:
-  - ps: Install-Module -Name Pester,PSScriptAnalyzer,BuildHelpers,InvokeBuild -Confirm:$false -Force -ErrorAction Stop -SkipPublisherCheck
+  - ps: Install-Module -Name InvokeBuild -Confirm:$false -ErrorAction Stop -Force
 
 # Skip on updates to the readme.
 # We can force this by adding [skip ci] or [ci skip] anywhere in commit message
@@ -18,12 +20,12 @@ skip_commits:
 #Kick off the CI/CD pipeline. We do test and build in the same script
 #To be portable to non-Appveyor builds
 #We run it at the test step so that we can upload test results back to the system.
-build: false
+build_script:
+  - ps: Invoke-Build Build,Package
 test_script:
-  - ps: Invoke-Build
+  - ps: Invoke-Build Test
 
 deploy: false
 
 on_finish:
-#If "AppveyorRDPDebug" is in the commit message, open an RDP session to investigate after build.
   - ps: if ($env:APPVEYOR_REPO_COMMIT_MESSAGE -match 'AppveyorRDPDebug') {$blockRdp = $true; iex ((new-object net.webclient).DownloadString('https://raw.githubusercontent.com/appveyor/ci/master/scripts/enable-rdp.ps1'))}

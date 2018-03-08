@@ -1,14 +1,17 @@
 #requires -module BuildHelpers
-if (-not import-module BuildHelpers -PassThru -erroraction silentlycontinue) {
+if (-not (import-module BuildHelpers -PassThru -erroraction silentlycontinue)) {
     install-module buildhelpers -scope currentuser -erroraction stop -force
     import-module BuildHelpers -erroraction stop
 }
-
+Set-BuildEnvironment -force
 $PSVersion = $PSVersionTable.PSVersion.Major
 $BuildOutputProject = Join-Path $env:BHBuildOutput $env:BHProjectName
+$ModuleManifestPath = Join-Path $BuildOutputProject '\*.psd1'
+
+if (-not (Test-Path $ModuleManifestPath)) {throw "Module Manifest not found at $ModuleManifestPath. Did you run 'Invoke-Build Build' first?"}
 
 Describe 'Powershell Module' {
-    $ModuleManifestPath = Join-Path $BuildOutputProject '\*.psd1'
+
     Context "$env:BHProjectName" {
         $ModuleName = $env:BHProjectName
         It 'Has a valid Module Manifest' {
@@ -67,8 +70,9 @@ Describe 'Powershell Module' {
 }
 
 Describe 'PSScriptAnalyzer' {
-    $results = Invoke-ScriptAnalyzer -Path $BuildOutputProject -Recurse -ExcludeRule "PSAvoidUsingCmdletAliases" -Verbose:$false
+    $results = Invoke-ScriptAnalyzer -Path $BuildOutputProject -Recurse -ExcludeRule "PSAvoidUsingCmdletAliases","PSAvoidGlobalVars" -Verbose:$false
     It 'PSScriptAnalyzer returns zero errors for all files in the repository' {
+        $results
         $results.Count | Should Be 0
     }
 }
