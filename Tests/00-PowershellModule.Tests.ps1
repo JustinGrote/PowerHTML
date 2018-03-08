@@ -1,5 +1,5 @@
 #requires -module BuildHelpers
-if (-not import-module BuildHelpers -PassThru -erroraction silentlycontinue) {
+if (-not (import-module BuildHelpers -PassThru -erroraction silentlycontinue)) {
     install-module buildhelpers -scope currentuser -erroraction stop -force
     import-module BuildHelpers -erroraction stop
 }
