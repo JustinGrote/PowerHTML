@@ -56,14 +56,9 @@ Enter-Build {
     $Timestamp = Get-date -uformat "%Y%m%d-%H%M%S"
     $PSVersion = $PSVersionTable.PSVersion.Major
     Set-BuildEnvironment -force
-    write-build Green "Current Branch Name: $BranchName"
 
     $PassThruParams = @{}
-    if ( ($VerbosePreference -ne 'SilentlyContinue') -or ($CI -and ($BranchName -ne 'master')) ) {
-        write-build Green "Verbose Build Logging Enabled"
-        $SCRIPT:VerbosePreference = "Continue"
-        $PassThruParams.Verbose = $true
-    }
+
 
     #If the branch name is master-test, run the build like we are in "master"
     if ($env:BHBranchName -eq 'master-test') {
@@ -71,6 +66,13 @@ Enter-Build {
         $SCRIPT:BranchName = "master"
     } else {
         $SCRIPT:BranchName = $env:BHBranchName
+    }
+    write-build Green "Current Branch Name: $BranchName"
+
+    if ( ($VerbosePreference -ne 'SilentlyContinue') -or ($CI -and ($BranchName -ne 'master')) ) {
+        write-build Green "Verbose Build Logging Enabled"
+        $SCRIPT:VerbosePreference = "Continue"
+        $PassThruParams.Verbose = $true
     }
 
     write-verboseheader "Build Environment Prepared! Environment Information:"
