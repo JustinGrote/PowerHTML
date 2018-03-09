@@ -79,7 +79,7 @@ Describe 'HTTP Operational Tests - REQUIRES INTERNET CONNECTION!' {
         $result.innertext -match 'Google' | Should Be $true
     }
     It "Can parse $uri piped from Invoke-WebRequest" {
-        $result = Invoke-WebRequest $uri | ConvertFrom-HTML
+        $result = Invoke-WebRequest -verbose:$false $uri | ConvertFrom-HTML
         $result | Should Be HtmlAgilityPack.HTMLNode
         $result.innertext -match 'Google' | Should Be $true
     }

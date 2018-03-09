@@ -16,9 +16,11 @@ param (
     #Which build files/folders should be excluded from packaging
     [String[]]$BuildFilesToExclude = @("Build","BuildOutput","Tests",".git*","appveyor.yml","gitversion.yml","*.build.ps1",".vscode",".placeholder"),
     #NuGet API Key for Powershell Gallery Deployment. Defaults to environment variable of the same name
-    $NuGetAPIKey = $env:NuGetAPIKey,
+    [String]$NuGetAPIKey = $env:NuGetAPIKey,
+    #GitHub User for Github Releases. Defaults to environment variable of the same name
+    [String]$GitHubUserName = $env:GitHubAPIKey,
     #GitHub API Key for Github Releases. Defaults to environment variable of the same name
-    $GitHubAPIKey = $env:GitHubAPIKey
+    [String]$GitHubAPIKey = $env:GitHubAPIKey
 )
 
 #Initialize Build Environment
@@ -76,7 +78,6 @@ Enter-Build {
     Set-BuildEnvironment -force
 
     $PassThruParams = @{}
-
 
     #If the branch name is master-test, run the build like we are in "master"
     if ($env:BHBranchName -eq 'master-test') {
@@ -138,6 +139,9 @@ Enter-Build {
     #Define the Project Build Path
     $SCRIPT:ProjectBuildPath = $ENV:BHBuildOutput + "\" + $ENV:BHProjectName
     Write-Build Green "Module Build Output Path: $ProjectBuildPath"
+
+    #Force TLS 1.2 for all HTTPS transactions
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 }
 
 task Clean {
@@ -380,14 +384,14 @@ task PreDeploymentChecks {
         if (-not (Get-Item $ProjectBuildPath/*.psd1 -erroraction silentlycontinue)) {throw "No Powershell Module Found in $ProjectBuildPath. Skipping deployment. Did you remember to build it first with {Invoke-Build Build}?"}
     }
 }
-
+#TODO: Replace SkipPublish Logic with Proper invokebuild task skipping
 task PublishPSGallery {
     if (-not $SkipPublish) {
         if ($AppVeyor -and -not $NuGetAPIKey) {
             write-build DarkYellow "Couldn't find NuGetAPIKey in the Appveyor secure environment variables. Did you save your NuGet/Powershell Gallery API key as an Appveyor Secure Variable? https://docs.microsoft.com/en-us/powershell/gallery/psgallery/creating-and-publishing-an-item and https://www.appveyor.com/docs/build-configuration/"
             $SkipPublish = $true
         }
-        if (-not $env:NuGetAPIKey) {
+        if (-not $NuGetAPIKey) {
             #TODO: Add Windows Credential Store support and some kind of Linux secure storage or caching option
             write-build DarkYellow '$env:NuGetAPIKey was not found as an environment variable. Please specify it or use {Invoke-Build Deploy -NuGetAPIKey "MyAPIKeyString"}. Have you registered for a Powershell Gallery API key yet? https://docs.microsoft.com/en-us/powershell/gallery/psgallery/creating-and-publishing-an-item'
             $SkipPublish = $true
@@ -412,29 +416,70 @@ task PublishPSGallery {
 }
 
 task PublishGitHubRelease Package,{
-
-    #TODO: Add Prerelease Logic when message commit says "!prerelease"
+    #TODO: Add Prerelease Logic when message commit says "!prerelease" or is in a release branch
     if (-not $SkipPublish) {
         if ($AppVeyor -and -not $GitHubAPIKey) {
             write-build DarkYellow "Task PublishGitHubRelease: Couldn't find GitHubAPIKey in the Appveyor secure environment variables. Did you save your Github API key as an Appveyor Secure Variable? https://docs.microsoft.com/en-us/powershell/gallery/psgallery/creating-and-publishing-an-item and https://github.com/settings/tokens"
             $SkipPublish = $true
         }
-        if (-not $env:GitHubAPIKey) {
+        if (-not $GitHubAPIKey) {
             #TODO: Add Windows Credential Store support and some kind of Linux secure storage or caching option
-            write-build DarkYellow 'Task PublishGitHubRelease: $env:GitHubAPIKey was not found as an environment variable. Please specify it or use {Invoke-Build Deploy -NuGetAPIKey "MyAPIKeyString"}. Have you created a GitHub API key with minimum public_repo scope permissions yet? https://github.com/settings/tokens'
+            write-build DarkYellow 'Task PublishGitHubRelease: $env:GitHubAPIKey was not found as an environment variable. Please specify it or use {Invoke-Build Deploy -GitHubUser "MyGitHubUser" -GitHubAPIKey "MyAPIKeyString"}. Have you created a GitHub API key with minimum public_repo scope permissions yet? https://github.com/settings/tokens'
+            $SkipPublish = $true
+        }
+        if (-not $GitHubUserName) {
+            write-build DarkYellow 'Task PublishGitHubRelease: $env:GitHubUserName was not found as an environment variable. Please specify it or use {Invoke-Build Deploy -GitHubUser "MyGitHubUser" -GitHubAPIKey "MyAPIKeyString"}. Have you created a GitHub API key with minimum public_repo scope permissions yet? https://github.com/settings/tokens'
             $SkipPublish = $true
         }
     }
     if ($SkipPublish) {
         write-build Magenta "Task $($task.name): Skipping Publish to GitHub Releases"
     } else {
-        #TODO: Add GitHubRelease Logic
-    }
+        #TODO: Add Prerelease Logic when message commit says "!prerelease" or is in a release branch
+        #Inspiration from https://www.herebedragons.io/powershell-create-github-release-with-artifact
 
+        #Create the release
+        $releaseData = @{
+            tag_name = [string]::Format("v{0}", $ProjectBuildVersion);
+            target_commitish = "master";
+            name = [string]::Format("v{0}", $ProjectBuildVersion);
+            body = $env:BHCommitMessage;
+            draft = $false;
+            prerelease = $false;
+        }
+
+        $releaseParams = @{
+            Uri = "https://api.github.com/repos/$gitHubUserName/$env:BHProjectName/releases"
+            Method = 'POST'
+            Headers = @{
+                Authorization = 'Basic ' + [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes($GitHubApiKey + ":x-oauth-basic"))
+            }
+            ContentType = 'application/json'
+            Body = (ConvertTo-Json $releaseData -Compress)
+        }
+
+        $result = Invoke-RestMethod @releaseParams -ErrorAction stop
+
+        $uploadUri = $result.upload_url
+        $uploadUri = $uploadUri -creplace '\{\?name,label\}'  #, "?name=$artifact"
+        $uploadUri = $uploadUri + "?name=$(split-path $zipArchivePath -leaf)"
+        $uploadFile = Join-Path -path $artifactOutputDirectory -childpath $artifact
+
+        $uploadParams = @{
+        Uri = $uploadUri;
+        Method = 'POST';
+        Headers = @{
+            Authorization = $auth;
+        }
+        ContentType = 'application/zip';
+        InFile = $zipArchivePath
+        }
+        $result = Invoke-RestMethod @uploadParams -erroraction stop
+    }
 }
 
 #Deploy Supertask
-task Deploy PreDeploymentChecks,Package,PublishPSGallery,PublishGitHubRelease
+task Deploy PreDeploymentChecks,Package,PublishGitHubRelease,PublishPSGallery
 
 #Build SuperTask
 task Build Clean,CopyFilesToBuildDir,UpdateMetadata
