@@ -100,7 +100,7 @@
                 "-ExecutionPolicy",
                 "Bypass",
                 "-Command",
-                "Invoke-Build Build"
+                "Invoke-Build"
             ],
             "problemMatcher": "$pester"
         },

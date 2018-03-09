@@ -1,7 +1,7 @@
 #requires -module BuildHelpers
-if (-not (import-module BuildHelpers -PassThru -erroraction silentlycontinue)) {
+if (-not (import-module BuildHelpers -PassThru -verbose:$false -erroraction silentlycontinue)) {
     install-module buildhelpers -scope currentuser -erroraction stop -force
-    import-module BuildHelpers -erroraction stop
+    import-module BuildHelpers -erroraction stop -verbose:$false
 }
 Set-BuildEnvironment -force
 $PSVersion = $PSVersionTable.PSVersion.Major
@@ -23,7 +23,7 @@ Describe 'Powershell Module' {
                 $TempModuleManifestPath = [System.IO.Path]::GetTempFileName() + '.psd1'
                 copy-item $ModuleManifestPath $TempModuleManifestPath
                 $Script:Manifest = Test-ModuleManifest $TempModuleManifestPath
-                remove-item $TempModuleManifestPath
+                remove-item $TempModuleManifestPath -verbose:$false
             }
         }
 
@@ -58,7 +58,7 @@ Describe 'Powershell Module' {
         }
         It 'Can be imported as a module successfully' {
             Remove-Module $ModuleName -ErrorAction SilentlyContinue
-            Import-Module $BuildOutputProject -PassThru -OutVariable BuildOutputModule | Should BeOfType System.Management.Automation.PSModuleInfo
+            Import-Module $BuildOutputProject -PassThru -verbose:$false -OutVariable BuildOutputModule | Should BeOfType System.Management.Automation.PSModuleInfo
             $BuildOutputModule.Name | Should Be $ModuleName
         }
         It 'Is visible in Get-Module' {

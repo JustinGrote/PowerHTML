@@ -4,12 +4,30 @@
 #Run by changing to the project root directory and run ./Invoke-Build.ps1
 #Uses a master-always-deploys strategy and semantic versioning - http://nvie.com/posts/a-successful-git-branching-model/
 
-#This variable specifies what modules to bootstrap for the build
-#It is recommended to only bootstrap BuildHelpers and PSDepend, and use PSDepend for remaining prereqs
-$BuildHelperModules = "BuildHelpers", "PSDepend", "Pester", "powershell-yaml", "Microsoft.Powershell.Archive", "PSScriptAnalyzer"
+param (
+    #Skip publishing to various destinations (Appveyor,Github,PowershellGallery,etc.)
+    [Switch]$SkipPublish,
+    #Force deployment step even if we are not in master. If you are following GitFlow or GitHubFlow you should never need to do this.
+    [Switch]$ForceDeploy,
+    #Show detailed environment variables
+    [Switch]$ShowEnvironmentVariables,
+    #Powershell modules required for the build process
+    [String[]]$BuildHelperModules = @("BuildHelpers","Pester","powershell-yaml","Microsoft.Powershell.Archive","PSScriptAnalyzer"),
+    #Which build files/folders should be excluded from packaging
+    [String[]]$BuildFilesToExclude = @("Build","BuildOutput","Tests",".git*","appveyor.yml","gitversion.yml","*.build.ps1",".vscode",".placeholder"),
+    #NuGet API Key for Powershell Gallery Deployment. Defaults to environment variable of the same name
+    $NuGetAPIKey = $env:NuGetAPIKey,
+    #GitHub API Key for Github Releases. Defaults to environment variable of the same name
+    $GitHubAPIKey = $env:GitHubAPIKey
+)
 
 #Initialize Build Environment
 Enter-Build {
+    #Initialize Script-scope variables
+    New-Variable ArtifactPaths
+    New-Variable ProjectVersion
+    New-Variable ProjectBuildPath
+
     $lines = '----------------------------------------------------------------'
     function Write-VerboseHeader ([String]$Message) {
         #Simple function to add lines around a header
@@ -21,7 +39,7 @@ Enter-Build {
 
     #Detect if we are in a continuous integration environment (Appveyor, etc.) or otherwise running noninteractively
     if ($ENV:CI -or ([Environment]::GetCommandLineArgs() -like '-noni*')) {
-        write-build Green 'Detected a Noninteractive or CI environment, disabling prompt confirmations'
+        write-build Green 'Build Initialization: Detected a Noninteractive or CI environment, disabling prompt confirmations'
         $SCRIPT:CI = $true
         $ConfirmPreference = 'None'
         $ProgressPreference = "SilentlyContinue"
@@ -34,7 +52,7 @@ Enter-Build {
 
     foreach ($BuildHelperModuleItem in $BuildHelperModules) {
         if (-not (Get-module $BuildHelperModuleItem -listavailable)) {
-            write-verbose "Installing $BuildHelperModuleItem from Powershell Gallery to your currentuser module directory"
+            write-verbose "Build Initialization: Installing $BuildHelperModuleItem from Powershell Gallery to your currentuser module directory"
             if ($PSVersionTable.PSVersion.Major -lt 5) {
                 write-verboseheader "Bootstrapping Powershell Module: $BuildHelperModuleItem"
                 Invoke-Command -ArgumentList @(, $BuildHelperModules) -ScriptBlock ([scriptblock]::Create((new-object net.webclient).DownloadString('https://git.io/PSModBootstrap')))
@@ -70,23 +88,20 @@ Enter-Build {
     write-build Green "Current Branch Name: $BranchName"
 
     if ( ($VerbosePreference -ne 'SilentlyContinue') -or ($CI -and ($BranchName -ne 'master')) ) {
-        write-build Green "Verbose Build Logging Enabled"
+        write-build Green "Build Initialization: Verbose Build Logging Enabled"
         $SCRIPT:VerbosePreference = "Continue"
         $PassThruParams.Verbose = $true
     }
 
+
     write-verboseheader "Build Environment Prepared! Environment Information:"
     Get-BuildEnvironment | format-list | out-string | write-verbose
+    if ($ShowEnvironmentVariables) {
+        write-verboseheader "Current Environment Variables"
+        get-childitem env: | out-string | write-verbose
 
-    write-verboseheader "Current Environment Variables"
-    get-childitem env: | out-string | write-verbose
-
-    write-verboseheader "Powershell Variables"
-    Get-Variable | select-object name, value, visibility | format-table -autosize | out-string | write-verbose
-
-    if ($ENV:APPVEYOR) {
-        write-verboseheader "Detected that we are running in Appveyor! Appveyor Environment Info:"
-        get-item env:/Appveyor* | out-string | write-verbose
+        write-verboseheader "Powershell Variables"
+        Get-Variable | select-object name, value, visibility | format-table -autosize | out-string | write-verbose
     }
 
     #Register Nuget
@@ -143,15 +158,16 @@ task Version {
     #Fetch GitVersion
     #TODO: Use Nuget.exe to fetch to make this v3/v4 compatible
     $GitVersionCMDPackageName = "gitversion.commandline"
-    if (!(Get-Package $GitVersionCMDPackageName -erroraction SilentlyContinue)) {
+    $GitVersionCMDPackage = Get-Package $GitVersionCMDPackageName -erroraction SilentlyContinue
+    if (!($GitVersionCMDPackage)) {
         write-verbose "Package $GitVersionCMDPackageName Not Found Locally, Installing..."
-        write-verboseheader "Nuget.Org Package Source Info for fetching Gitversion"
+        write-verboseheader "Nuget.Org Package Source Info for fetching GitVersion"
         Get-PackageSource | Format-Table | out-string | write-verbose
 
         #Fetch GitVersion
-        Install-Package $GitVersionCMDPackageName -scope currentuser -source 'nuget.org' -force @PassThruParams | Out-Null
+        $GitVersionCMDPackage = Install-Package $GitVersionCMDPackageName -scope currentuser -source 'nuget.org' -force @PassThruParams
     }
-    $GitVersionEXE = ((get-package $GitVersionCMDPackageName).source | split-path -Parent) + "\tools\GitVersion.exe"
+    $GitVersionEXE = (($GitVersionCMDPackage).source | split-path -Parent) + "\tools\GitVersion.exe"
 
     #Does this project have a module manifest? Use that as the Gitversion starting point (will use this by default unless project is tagged higher)
     #Uses Powershell-YAML module to read/write the GitVersion.yaml config file
@@ -172,7 +188,8 @@ task Version {
 
     #Calcuate the GitVersion
     write-verbose "Executing GitVersion to determine version info"
-    $GitVersionOutput = & $GitVersionEXE $buildRoot
+    $GitVersionCommand = "$GitVersionEXE $buildRoot"
+    $GitVersionOutput = Invoke-BuildExec { & $GitVersionEXE $buildRoot}
 
     #Since GitVersion doesn't return error exit codes, we look for error text in the output in the output
     if ($GitVersionOutput -match '^[ERROR|INFO] \[') {throw "An error occured when running GitVersion.exe $buildRoot"}
@@ -196,8 +213,8 @@ task Version {
 
 
     $SCRIPT:ProjectSemVersion = $($GitVersionInfo.fullsemver)
-    write-build Green "Using Project Version: $ProjectBuildVersion"
-    write-build Green "Using Project Version (Extended): $($GitVersionInfo.fullsemver)"
+    write-build Green "Task $($task.name)`: Using Project Version: $ProjectBuildVersion"
+    write-build Green "Task $($task.name)`: Using Project Version (Extended): $($GitVersionInfo.fullsemver)"
 }
 
 #Copy all powershell module "artifacts" to Build Directory
@@ -208,7 +225,7 @@ task CopyFilesToBuildDir {
     #The file or file paths to copy, excluding the powershell psm1 and psd1 module and manifest files which will be autodetected
     #TODO: Move this somewhere higher in the hierarchy into a settings file, or rather go the "exclude" route
     $FilesToCopy = "lib","Public","Private","Types","LICENSE","README.md","$($Env:BHProjectName).psm1","$($Env:BHProjectName).psd1"
-    copy-item -Recurse -Path $FilesToCopy -Destination $ProjectBuildPath @PassThruParams
+    copy-item -Recurse -Path $buildRoot\* -Exclude $BuildFilesToExclude -Destination $ProjectBuildPath @PassThruParams
 }
 
 #Update the Metadata of the Module with the latest Version
@@ -218,7 +235,7 @@ task UpdateMetadata CopyFilesToBuildDir,Version,{
     # TODO: Find a cleaner solution, like update Set-ModuleFunctions to use a separate runspace or include a market to know we are in ModuleFunctions so when loading the module we can copy the assemblies to temp files first
     $ProjectBuildManifest = ($ProjectBuildPath + "\" + (split-path $env:BHPSModuleManifest -leaf))
     $tempModuleDir = [System.IO.Path]::GetTempFileName()
-    Remove-Item $tempModuleDir
+    Remove-Item $tempModuleDir -verbose:$false
     New-Item -Type Directory $tempModuleDir | out-null
     copy-item -recurse $ProjectBuildPath/* $tempModuleDir
 
@@ -232,7 +249,7 @@ task UpdateMetadata CopyFilesToBuildDir,Version,{
 
     # Are we in the master or develop/development branch? Bump the version based on the powershell gallery if so, otherwise add a build tag
     if ($BranchName -match '^(master|dev(elop)?(ment)?)$') {
-        write-build Green "In Master/Develop branch, adding Tag Version $ProjectBuildVersion to this build"
+        write-build Green "Task $($task.name)`: In Master/Develop branch, adding Tag Version $ProjectBuildVersion to this build"
         $Script:ProjectVersion = $ProjectBuildVersion
         if (-not (git tag -l $ProjectBuildVersion)) {
             git tag "$ProjectBuildVersion"
@@ -250,7 +267,7 @@ task UpdateMetadata CopyFilesToBuildDir,Version,{
         }
         #>
     } else {
-        write-build Green "Not in Master/Develop branch, marking this as a feature prelease build"
+        write-build Green "Task $($task.name)`: Not in Master/Develop branch, marking this as a feature prelease build"
         $Script:ProjectVersion = $ProjectSemVersion
         #Set an email address for tag commit to work if it isn't already present
         if (-not (git config user.email)) {
@@ -323,20 +340,101 @@ task Pester {
 }
 
 task Package Version,{
+
     $ZipArchivePath = (join-path $env:BHBuildOutput "$env:BHProjectName-$ProjectVersion.zip")
-    write-build green "Writing Finished Module to $ZipArchivePath"
+    write-build green "Task $($task.name)`: Writing Finished Module to $ZipArchivePath"
     #Package the Powershell Module
     Compress-Archive -Path $ProjectBuildPath -DestinationPath $ZipArchivePath -Force @PassThruParams
 
+    $Artifacts += $ZipArchivePath
     #If we are in Appveyor, push completed zip to Appveyor Artifact
     if ($env:APPVEYOR) {
-        write-build Green "Detected Appveyor, pushing Powershell Module archive to Artifacts"
+        write-build Green "Task $($task.name)`: Detected Appveyor, pushing Powershell Module archive to Artifacts"
         Push-AppveyorArtifact $ZipArchivePath
     }
 }
 
+task PreDeploymentChecks {
+    #Do not proceed if the most recent Pester test is not passing.
+    $CurrentErrorActionPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = "Stop"
+        $MostRecentPesterTestResult = [xml]((Get-Content -raw (get-item "$ENV:BHBuildOutput/*-TestResults*.xml" | sort lastwritetime | select -last 1)))
+        $MostRecentPesterTestResult = $MostRecentPesterTestResult."test-results"
+        if (
+            $MostRecentPesterTestResult -isnot [System.XML.XMLElement] -or
+            $MostRecentPesterTestResult.errors -gt 0 -or
+            $MostRecentPesterTestResult.failures -gt 0
+        ) {throw "Fail!"}
+    } catch {
+        throw "Unable to detect a clean passing Pester Test xml in the $env:BHBuildOutput directory. Ensure you were successful in the Build and Test phases first."
+    }
+    finally {
+        $ErrorActionPreference = $CurrentErrorActionPreference
+    }
+
+    if ((-not $env:BHBranchName -eq 'Master') -or ($ForceDeploy -ne $true)) {
+        write-build Magenta "Task $($task.name)`: We are not in master branch, skipping publish. If you wish to deploy anyways such as for testing, run {InvokeBuild Deploy -ForceDeploy:$true}"
+        $script:SkipPublish=$true
+    } else {
+        if (-not (Get-Item $ProjectBuildPath/*.psd1 -erroraction silentlycontinue)) {throw "No Powershell Module Found in $ProjectBuildPath. Skipping deployment. Did you remember to build it first with {Invoke-Build Build}?"}
+    }
+}
+
+task PublishPSGallery {
+    if (-not $SkipPublish) {
+        if ($AppVeyor -and -not $NuGetAPIKey) {
+            write-build DarkYellow "Couldn't find NuGetAPIKey in the Appveyor secure environment variables. Did you save your NuGet/Powershell Gallery API key as an Appveyor Secure Variable? https://docs.microsoft.com/en-us/powershell/gallery/psgallery/creating-and-publishing-an-item and https://www.appveyor.com/docs/build-configuration/"
+            $SkipPublish = $true
+        }
+        if (-not $env:NuGetAPIKey) {
+            #TODO: Add Windows Credential Store support and some kind of Linux secure storage or caching option
+            write-build DarkYellow '$env:NuGetAPIKey was not found as an environment variable. Please specify it or use {Invoke-Build Deploy -NuGetAPIKey "MyAPIKeyString"}. Have you registered for a Powershell Gallery API key yet? https://docs.microsoft.com/en-us/powershell/gallery/psgallery/creating-and-publishing-an-item'
+            $SkipPublish = $true
+        }
+    }
+
+    if ($SkipPublish) {
+        Write-Build Magenta "Task $($task.name)`: Skipping Powershell Gallery Publish"
+    } else {
+
+        $publishParams = @{
+                Path = $ProjectBuildPath
+                NuGetApiKey = $NuGetAPIKey
+                Repository = 'PSGallery'
+                Force = $true
+                ErrorAction = 'Stop'
+                Confirm = $false
+        }
+        #TODO: Add Prerelease Logic when message commit says "!prerelease"
+        Publish-Module @publishParams @PassThruParams
+    }
+}
+
+task PublishGitHubRelease Package,{
+
+    #TODO: Add Prerelease Logic when message commit says "!prerelease"
+    if (-not $SkipPublish) {
+        if ($AppVeyor -and -not $GitHubAPIKey) {
+            write-build DarkYellow "Task PublishGitHubRelease: Couldn't find GitHubAPIKey in the Appveyor secure environment variables. Did you save your Github API key as an Appveyor Secure Variable? https://docs.microsoft.com/en-us/powershell/gallery/psgallery/creating-and-publishing-an-item and https://github.com/settings/tokens"
+            $SkipPublish = $true
+        }
+        if (-not $env:GitHubAPIKey) {
+            #TODO: Add Windows Credential Store support and some kind of Linux secure storage or caching option
+            write-build DarkYellow 'Task PublishGitHubRelease: $env:GitHubAPIKey was not found as an environment variable. Please specify it or use {Invoke-Build Deploy -NuGetAPIKey "MyAPIKeyString"}. Have you created a GitHub API key with minimum public_repo scope permissions yet? https://github.com/settings/tokens'
+            $SkipPublish = $true
+        }
+    }
+    if ($SkipPublish) {
+        write-build Magenta "Task $($task.name): Skipping Publish to GitHub Releases"
+    } else {
+        #TODO: Add GitHubRelease Logic
+    }
+
+}
+
 #Deploy Supertask
-task Deploy Package
+task Deploy PreDeploymentChecks,Package,PublishPSGallery,PublishGitHubRelease
 
 #Build SuperTask
 task Build Clean,CopyFilesToBuildDir,UpdateMetadata
