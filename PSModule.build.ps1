@@ -171,7 +171,7 @@ task Version {
         #Fetch GitVersion
         $GitVersionCMDPackage = Install-Package $GitVersionCMDPackageName -scope currentuser -source 'nuget.org' -force @PassThruParams
     }
-    $GitVersionEXE = (($GitVersionCMDPackage).source | split-path -Parent) + "\tools\GitVersion.exe"
+    $GitVersionEXE = ((Get-Package $GitVersionCMDPackageName).source | split-path -Parent) + "\tools\GitVersion.exe"
 
     #Does this project have a module manifest? Use that as the Gitversion starting point (will use this by default unless project is tagged higher)
     #Uses Powershell-YAML module to read/write the GitVersion.yaml config file
@@ -377,7 +377,7 @@ task PreDeploymentChecks {
         $ErrorActionPreference = $CurrentErrorActionPreference
     }
 
-    if ((-not $env:BHBranchName -eq 'Master') -or ($ForceDeploy -ne $true)) {
+    if ((-not $env:BHBranchName -eq 'master') -or ($ForceDeploy -ne $true)) {
         write-build Magenta "Task $($task.name)`: We are not in master branch, skipping publish. If you wish to deploy anyways such as for testing, run {InvokeBuild Deploy -ForceDeploy:$true}"
         $script:SkipPublish=$true
     } else {

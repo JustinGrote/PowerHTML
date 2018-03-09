@@ -7,7 +7,6 @@ environment:
     secure: HncD30pn+cWRepdP28pyB1l4BNg3x3MdvcNV8EysOhQ5kBFMHVyXiQM0whuUW78P
 
 image:
-  - Visual Studio 2015
   - Visual Studio 2017
 install:
   - ps: Install-Module -Name InvokeBuild -Confirm:$false -ErrorAction Stop -Force
