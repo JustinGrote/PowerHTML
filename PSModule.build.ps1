@@ -363,7 +363,7 @@ task PreDeploymentChecks {
     $CurrentErrorActionPreference = $ErrorActionPreference
     try {
         $ErrorActionPreference = "Stop"
-        $MostRecentPesterTestResult = [xml]((Get-Content -raw (get-item "$ENV:BHBuildOutput/*-TestResults*.xml" | sort lastwritetime | select -last 1)))
+        $MostRecentPesterTestResult = [xml]((Get-Content -raw (get-item "$ENV:BHBuildOutput/*-TestResults*.xml" | Sort-Object lastwritetime | Select-Object -last 1)))
         $MostRecentPesterTestResult = $MostRecentPesterTestResult."test-results"
         if (
             $MostRecentPesterTestResult -isnot [System.XML.XMLElement] -or
