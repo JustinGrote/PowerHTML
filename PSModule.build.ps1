@@ -26,9 +26,9 @@ param (
 #Initialize Build Environment
 Enter-Build {
     #Initialize Script-scope variables
-    New-Variable ArtifactPaths
-    New-Variable ProjectVersion
-    New-Variable ProjectBuildPath
+    $ArtifactPaths = @()
+    $ProjectBuildVersion = $null
+    $ProjectBuildPath = $null
 
     $lines = '----------------------------------------------------------------'
     function Write-VerboseHeader ([String]$Message) {
@@ -345,12 +345,12 @@ task Pester {
 
 task Package Version,{
 
-    $ZipArchivePath = (join-path $env:BHBuildOutput "$env:BHProjectName-$ProjectVersion.zip")
+    $ZipArchivePath = (join-path $env:BHBuildOutput "$env:BHProjectName-$ProjectBuildVersion.zip")
     write-build green "Task $($task.name)`: Writing Finished Module to $ZipArchivePath"
     #Package the Powershell Module
     Compress-Archive -Path $ProjectBuildPath -DestinationPath $ZipArchivePath -Force @PassThruParams
 
-    $Artifacts += $ZipArchivePath
+    $SCRIPT:ArtifactPaths += $ZipArchivePath
     #If we are in Appveyor, push completed zip to Appveyor Artifact
     if ($env:APPVEYOR) {
         write-build Green "Task $($task.name)`: Detected Appveyor, pushing Powershell Module archive to Artifacts"
@@ -384,36 +384,6 @@ task PreDeploymentChecks {
         if (-not (Get-Item $ProjectBuildPath/*.psd1 -erroraction silentlycontinue)) {throw "No Powershell Module Found in $ProjectBuildPath. Skipping deployment. Did you remember to build it first with {Invoke-Build Build}?"}
     }
 }
-#TODO: Replace SkipPublish Logic with Proper invokebuild task skipping
-task PublishPSGallery {
-    if (-not $SkipPublish) {
-        if ($AppVeyor -and -not $NuGetAPIKey) {
-            write-build DarkYellow "Couldn't find NuGetAPIKey in the Appveyor secure environment variables. Did you save your NuGet/Powershell Gallery API key as an Appveyor Secure Variable? https://docs.microsoft.com/en-us/powershell/gallery/psgallery/creating-and-publishing-an-item and https://www.appveyor.com/docs/build-configuration/"
-            $SkipPublish = $true
-        }
-        if (-not $NuGetAPIKey) {
-            #TODO: Add Windows Credential Store support and some kind of Linux secure storage or caching option
-            write-build DarkYellow '$env:NuGetAPIKey was not found as an environment variable. Please specify it or use {Invoke-Build Deploy -NuGetAPIKey "MyAPIKeyString"}. Have you registered for a Powershell Gallery API key yet? https://docs.microsoft.com/en-us/powershell/gallery/psgallery/creating-and-publishing-an-item'
-            $SkipPublish = $true
-        }
-    }
-
-    if ($SkipPublish) {
-        Write-Build Magenta "Task $($task.name)`: Skipping Powershell Gallery Publish"
-    } else {
-
-        $publishParams = @{
-                Path = $ProjectBuildPath
-                NuGetApiKey = $NuGetAPIKey
-                Repository = 'PSGallery'
-                Force = $true
-                ErrorAction = 'Stop'
-                Confirm = $false
-        }
-        #TODO: Add Prerelease Logic when message commit says "!prerelease"
-        Publish-Module @publishParams @PassThruParams
-    }
-}
 
 task PublishGitHubRelease Package,{
     #TODO: Add Prerelease Logic when message commit says "!prerelease" or is in a release branch
@@ -444,15 +414,15 @@ task PublishGitHubRelease Package,{
             target_commitish = "master";
             name = [string]::Format("v{0}", $ProjectBuildVersion);
             body = $env:BHCommitMessage;
-            draft = $false;
-            prerelease = $false;
+            draft = $true;
+            prerelease = $true;
         }
-
+        $auth = 'Basic ' + [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes($GitHubApiKey + ":x-oauth-basic"))
         $releaseParams = @{
             Uri = "https://api.github.com/repos/$gitHubUserName/$env:BHProjectName/releases"
             Method = 'POST'
             Headers = @{
-                Authorization = 'Basic ' + [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes($GitHubApiKey + ":x-oauth-basic"))
+                Authorization = $auth
             }
             ContentType = 'application/json'
             Body = (ConvertTo-Json $releaseData -Compress)
@@ -460,21 +430,51 @@ task PublishGitHubRelease Package,{
 
         $result = Invoke-RestMethod @releaseParams -ErrorAction stop
 
-        $uploadUri = $result.upload_url
-        $uploadUri = $uploadUri -creplace '\{\?name,label\}'  #, "?name=$artifact"
-        $uploadUri = $uploadUri + "?name=$(split-path $zipArchivePath -leaf)"
-        $uploadFile = Join-Path -path $artifactOutputDirectory -childpath $artifact
+        $uploadUriBase = $result.upload_url -creplace '\{\?name,label\}'  # Strip the , "?name=$artifact" part
 
         $uploadParams = @{
-        Uri = $uploadUri;
         Method = 'POST';
         Headers = @{
             Authorization = $auth;
         }
         ContentType = 'application/zip';
-        InFile = $zipArchivePath
         }
-        $result = Invoke-RestMethod @uploadParams -erroraction stop
+        foreach ($artifactItem in $artifactPaths) {
+            $uploadparams.URI = $uploadUriBase + "?name=$(split-path $artifactItem -leaf)"
+            $uploadparams.Infile = $artifactItem
+            $result = Invoke-RestMethod @uploadParams -erroraction stop
+        }
+    }
+}
+
+#TODO: Replace SkipPublish Logic with Proper invokebuild task skipping
+task PublishPSGallery {
+    if (-not $SkipPublish) {
+        if ($AppVeyor -and -not $NuGetAPIKey) {
+            write-build DarkYellow "Couldn't find NuGetAPIKey in the Appveyor secure environment variables. Did you save your NuGet/Powershell Gallery API key as an Appveyor Secure Variable? https://docs.microsoft.com/en-us/powershell/gallery/psgallery/creating-and-publishing-an-item and https://www.appveyor.com/docs/build-configuration/"
+            $SkipPublish = $true
+        }
+        if (-not $NuGetAPIKey) {
+            #TODO: Add Windows Credential Store support and some kind of Linux secure storage or caching option
+            write-build DarkYellow '$env:NuGetAPIKey was not found as an environment variable. Please specify it or use {Invoke-Build Deploy -NuGetAPIKey "MyAPIKeyString"}. Have you registered for a Powershell Gallery API key yet? https://docs.microsoft.com/en-us/powershell/gallery/psgallery/creating-and-publishing-an-item'
+            $SkipPublish = $true
+        }
+    }
+
+    if ($SkipPublish) {
+        Write-Build Magenta "Task $($task.name)`: Skipping Powershell Gallery Publish"
+    } else {
+
+        $publishParams = @{
+                Path = $ProjectBuildPath
+                NuGetApiKey = $NuGetAPIKey
+                Repository = 'PSGallery'
+                Force = $true
+                ErrorAction = 'Stop'
+                Confirm = $false
+        }
+        #TODO: Add Prerelease Logic when message commit says "!prerelease"
+        Publish-Module @publishParams @PassThruParams
     }
 }
 
