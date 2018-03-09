@@ -363,7 +363,7 @@ task PreDeploymentChecks {
     $CurrentErrorActionPreference = $ErrorActionPreference
     try {
         $ErrorActionPreference = "Stop"
-        $MostRecentPesterTestResult = [xml]((Get-Content -raw (get-item "$ENV:BHBuildOutput/*-TestResults*.xml" | sort lastwritetime | select -last 1)))
+        $MostRecentPesterTestResult = [xml]((Get-Content -raw (get-item "$ENV:BHBuildOutput/*-TestResults*.xml" | Sort-Object lastwritetime | Select-Object -last 1)))
         $MostRecentPesterTestResult = $MostRecentPesterTestResult."test-results"
         if (
             $MostRecentPesterTestResult -isnot [System.XML.XMLElement] -or
@@ -371,38 +371,36 @@ task PreDeploymentChecks {
             $MostRecentPesterTestResult.failures -gt 0
         ) {throw "Fail!"}
     } catch {
-        throw "Unable to detect a clean passing Pester Test xml in the $env:BHBuildOutput directory. Ensure you were successful in the Build and Test phases first."
+        throw "Unable to detect a clean passing Pester Test nunit xml file in the $env:BHBuildOutput directory. Did you run {Invoke-Build Build,Test} and ensure it passed all tests first?"
     }
     finally {
         $ErrorActionPreference = $CurrentErrorActionPreference
     }
 
-    if ((-not $env:BHBranchName -eq 'master') -or ($ForceDeploy -ne $true)) {
+    if (($env:BHBranchName -eq 'master') -or $ForceDeploy) {
+        if (-not (Get-Item $ProjectBuildPath/*.psd1 -erroraction silentlycontinue)) {throw "No Powershell Module Found in $ProjectBuildPath. Skipping deployment. Did you remember to build it first with {Invoke-Build Build}?"}
+    } else {
         write-build Magenta "Task $($task.name)`: We are not in master branch, skipping publish. If you wish to deploy anyways such as for testing, run {InvokeBuild Deploy -ForceDeploy:$true}"
         $script:SkipPublish=$true
-    } else {
-        if (-not (Get-Item $ProjectBuildPath/*.psd1 -erroraction silentlycontinue)) {throw "No Powershell Module Found in $ProjectBuildPath. Skipping deployment. Did you remember to build it first with {Invoke-Build Build}?"}
     }
 }
 
-task PublishGitHubRelease Package,{
+task PublishGitHubRelease -if (-not $SkipPublish) Package,{
     #TODO: Add Prerelease Logic when message commit says "!prerelease" or is in a release branch
-    if (-not $SkipPublish) {
-        if ($AppVeyor -and -not $GitHubAPIKey) {
-            write-build DarkYellow "Task PublishGitHubRelease: Couldn't find GitHubAPIKey in the Appveyor secure environment variables. Did you save your Github API key as an Appveyor Secure Variable? https://docs.microsoft.com/en-us/powershell/gallery/psgallery/creating-and-publishing-an-item and https://github.com/settings/tokens"
-            $SkipPublish = $true
-        }
-        if (-not $GitHubAPIKey) {
-            #TODO: Add Windows Credential Store support and some kind of Linux secure storage or caching option
-            write-build DarkYellow 'Task PublishGitHubRelease: $env:GitHubAPIKey was not found as an environment variable. Please specify it or use {Invoke-Build Deploy -GitHubUser "MyGitHubUser" -GitHubAPIKey "MyAPIKeyString"}. Have you created a GitHub API key with minimum public_repo scope permissions yet? https://github.com/settings/tokens'
-            $SkipPublish = $true
-        }
-        if (-not $GitHubUserName) {
-            write-build DarkYellow 'Task PublishGitHubRelease: $env:GitHubUserName was not found as an environment variable. Please specify it or use {Invoke-Build Deploy -GitHubUser "MyGitHubUser" -GitHubAPIKey "MyAPIKeyString"}. Have you created a GitHub API key with minimum public_repo scope permissions yet? https://github.com/settings/tokens'
-            $SkipPublish = $true
-        }
+    if ($AppVeyor -and -not $GitHubAPIKey) {
+        write-build DarkYellow "Task PublishGitHubRelease: Couldn't find GitHubAPIKey in the Appveyor secure environment variables. Did you save your Github API key as an Appveyor Secure Variable? https://docs.microsoft.com/en-us/powershell/gallery/psgallery/creating-and-publishing-an-item and https://github.com/settings/tokens"
+        $SkipGitHubRelease = $true
     }
-    if ($SkipPublish) {
+    if (-not $GitHubAPIKey) {
+        #TODO: Add Windows Credential Store support and some kind of Linux secure storage or caching option
+        write-build DarkYellow 'Task PublishGitHubRelease: $env:GitHubAPIKey was not found as an environment variable. Please specify it or use {Invoke-Build Deploy -GitHubUser "MyGitHubUser" -GitHubAPIKey "MyAPIKeyString"}. Have you created a GitHub API key with minimum public_repo scope permissions yet? https://github.com/settings/tokens'
+        $SkipGitHubRelease = $true
+    }
+    if (-not $GitHubUserName) {
+        write-build DarkYellow 'Task PublishGitHubRelease: $env:GitHubUserName was not found as an environment variable. Please specify it or use {Invoke-Build Deploy -GitHubUser "MyGitHubUser" -GitHubAPIKey "MyAPIKeyString"}. Have you created a GitHub API key with minimum public_repo scope permissions yet? https://github.com/settings/tokens'
+        $SkipGitHubRelease = $true
+    }
+    if ($SkipGitHubRelease) {
         write-build Magenta "Task $($task.name): Skipping Publish to GitHub Releases"
     } else {
         #TODO: Add Prerelease Logic when message commit says "!prerelease" or is in a release branch
@@ -448,23 +446,20 @@ task PublishGitHubRelease Package,{
 }
 
 #TODO: Replace SkipPublish Logic with Proper invokebuild task skipping
-task PublishPSGallery {
-    if (-not $SkipPublish) {
-        if ($AppVeyor -and -not $NuGetAPIKey) {
-            write-build DarkYellow "Couldn't find NuGetAPIKey in the Appveyor secure environment variables. Did you save your NuGet/Powershell Gallery API key as an Appveyor Secure Variable? https://docs.microsoft.com/en-us/powershell/gallery/psgallery/creating-and-publishing-an-item and https://www.appveyor.com/docs/build-configuration/"
-            $SkipPublish = $true
-        }
-        if (-not $NuGetAPIKey) {
-            #TODO: Add Windows Credential Store support and some kind of Linux secure storage or caching option
-            write-build DarkYellow '$env:NuGetAPIKey was not found as an environment variable. Please specify it or use {Invoke-Build Deploy -NuGetAPIKey "MyAPIKeyString"}. Have you registered for a Powershell Gallery API key yet? https://docs.microsoft.com/en-us/powershell/gallery/psgallery/creating-and-publishing-an-item'
-            $SkipPublish = $true
-        }
+task PublishPSGallery -if (-not $SkipPublish) {
+    if ($AppVeyor -and -not $NuGetAPIKey) {
+        write-build DarkYellow "Couldn't find NuGetAPIKey in the Appveyor secure environment variables. Did you save your NuGet/Powershell Gallery API key as an Appveyor Secure Variable? https://docs.microsoft.com/en-us/powershell/gallery/psgallery/creating-and-publishing-an-item and https://www.appveyor.com/docs/build-configuration/"
+        $SkipPSGallery = $true
+    }
+    if (-not $NuGetAPIKey) {
+        #TODO: Add Windows Credential Store support and some kind of Linux secure storage or caching option
+        write-build DarkYellow '$env:NuGetAPIKey was not found as an environment variable. Please specify it or use {Invoke-Build Deploy -NuGetAPIKey "MyAPIKeyString"}. Have you registered for a Powershell Gallery API key yet? https://docs.microsoft.com/en-us/powershell/gallery/psgallery/creating-and-publishing-an-item'
+        $SkipPSGallery = $true
     }
 
     if ($SkipPublish) {
         Write-Build Magenta "Task $($task.name)`: Skipping Powershell Gallery Publish"
     } else {
-
         $publishParams = @{
                 Path = $ProjectBuildPath
                 NuGetApiKey = $NuGetAPIKey
@@ -478,13 +473,10 @@ task PublishPSGallery {
     }
 }
 
-#Deploy Supertask
+### SuperTasks
+# These are the only supported items to run directly from Invoke-Build
 task Deploy PreDeploymentChecks,Package,PublishGitHubRelease,PublishPSGallery
-
-#Build SuperTask
 task Build Clean,CopyFilesToBuildDir,UpdateMetadata
-
-#Test SuperTask
 task Test Pester
 
 #Default Task - Build, Test with Pester, Deploy
