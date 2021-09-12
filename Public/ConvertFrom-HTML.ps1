@@ -4,8 +4,47 @@
 .DESCRIPTION
     Long description
 .EXAMPLE
-    PS C:\> <example usage>
-    Explanation of what the example does
+    PS C:\> $HTMLString = @"
+    <!DOCTYPE html>
+    <html>
+    <body>
+    <h1>My First Heading</h1>
+    <p>My first paragraph.</p>d
+    </body>
+    </html>
+    "@
+ PS C:\> $HTMLString | ConvertFrom-HTML -OutVariable result
+
+NodeType Name      AttributeCount ChildNodeCount ContentLength InnerText
+-------- ----      -------------- -------------- ------------- ---------
+Document #document 0              4              103               …
+
+ PS C:\> $result.SelectSingleNode("//body/h1")
+
+NodeType Name AttributeCount ChildNodeCount ContentLength InnerText
+-------- ---- -------------- -------------- ------------- ---------
+Element  h1   0              1              16            My First Heading
+
+    Convert HTML string to a HtmlNode via the pipeline.
+
+.EXAMPLE
+    PS C:\> $uri = "https://www.powershellgallery.com/"
+    PS C:\> $result = ConvertFrom-HTML -uri $uri
+    PS C:\> $result
+
+NodeType Name      AttributeCount ChildNodeCount ContentLength InnerText
+-------- ----      -------------- -------------- ------------- ---------
+Document #document 0              4              17550         …
+
+    Fetch and parse $uri directly via the URI pipeline.
+.EXAMPLE
+    PS C:\>  Get-Item $testFilePath | ConvertFrom-Html
+
+NodeType Name      AttributeCount ChildNodeCount ContentLength InnerText
+-------- ----      -------------- -------------- ------------- ---------
+Document #document 0              5              105               …
+
+    Parse an HTML file piped from Get-Item.
 .INPUTS
     [String[]]
     [System.IO.FileInfo[]]
