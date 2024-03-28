@@ -76,13 +76,15 @@ function ConvertFrom-Html {
         #Do not return the Linq documentnode, instead return the HTMLDocument object. This is useful if you want to do XPath queries instead of Linq queries
         [switch] $Raw
     )
-
+    begin {
+        $html = [HtmlAgilityPack.HtmlDocument]::new()
+        $web = [HtmlAgilityPack.HtmlWeb]::new()
+    }
     process {
         switch ($PSCmdlet.ParameterSetName) {
             'String' {
                 $Content | ForEach-Object {
                     Write-Verbose "Loading HTML $_"
-                    $html = [HtmlAgilityPack.HtmlDocument]::new()
                     $html.LoadHtml($_)
                     if ($Raw) { $html } else { $html.DocumentNode }
                 }
@@ -90,23 +92,20 @@ function ConvertFrom-Html {
             'URI' {
                 $URI | ForEach-Object {
                     Write-Verbose "Loading URI $_"
-                    $web = [HtmlAgilityPack.HtmlWeb]::new()
-                    $html = $web.Load($_)
-                    if ($Raw) { $html } else { $html.DocumentNode }
+                    $site = $web.Load($_)
+                    if ($Raw) { $site } else { $site.DocumentNode }
                 }
             }
             'Path' {
                 $Path | ForEach-Object {
                     Write-Verbose "Loading File $_"
-                    $html = [HtmlAgilityPack.HtmlDocument]::new()
                     $html.Load($_.FullName)
                     if ($Raw) { $html } else { $html.DocumentNode }
                 }
             }
-            default {
-                Write-Error 'Input Object Type Not Identified. ConvertFrom-HTML needs better input validation'
-                return
-            }
         }
+    }
+    end {
+        $web = $html = $site = $null
     }
 }

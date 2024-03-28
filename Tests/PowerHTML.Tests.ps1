@@ -1,18 +1,12 @@
 #Move out of tests to the subdirectory of the modulepwd
-if ((get-item .).Name -match 'Tests') {Set-Location $PSScriptRoot\..}
+if ((get-item .).Name -match 'Tests') { Set-Location $PSScriptRoot\.. }
 
 Describe 'HTML Basic Conversion' {
-    $HTMLString = @"
-<!DOCTYPE html>
-<html>
-<body>
-<h1>My First Heading</h1>
-<p>My first paragraph.</p>d
-</body>
-</html>
-"@
-
-    $HTMLString2 = @"
+    BeforeAll {
+        if (-not (Get-Module PowerHTML)) {
+            Import-Module $PSScriptRoot\..\PowerHTML.psd1 -Force
+        }
+        $HTMLString = @'
 <!DOCTYPE html>
 <html>
 <body>
@@ -20,15 +14,23 @@ Describe 'HTML Basic Conversion' {
 <p>My first paragraph.</p>
 </body>
 </html>
-"@
-
-    #Generate test files to a random path
-    $testFilePath1 = New-TemporaryFile
-    $testFilePath2 = New-TemporaryFile
-    $testFilePathAll = @($testFilePath1,$testFilePath2)
-    Add-Content -Path $testFilePath1 -Value $HTMLString
-    Add-Content -Path $testFilePath2 -Value $HTMLString2
-
+'@
+        $HTMLString2 = @'
+<!DOCTYPE html>
+<html>
+<body>
+<h1>Heading 1</h1>
+<p>Paragraph 1.</p>
+</body>
+</html>
+'@
+        #Generate test files to a random path
+        $testFilePath1 = New-TemporaryFile
+        $testFilePath2 = New-TemporaryFile
+        $testFilePathAll = @($testFilePath1,$testFilePath2)
+        Add-Content -Path $testFilePath1 -Value $HTMLString
+        Add-Content -Path $testFilePath2 -Value $HTMLString2
+    }
     It 'Can convert an HTML string to a raw HTMLDocument via the pipeline' {
         $HTMLString | ConvertFrom-Html -Raw | Should -BeOfType HtmlAgilityPack.HTMLDocument
     }
@@ -62,25 +64,28 @@ Describe 'HTML Basic Conversion' {
             $resultItem | Should -BeOfType HtmlAgilityPack.HTMLNode
         }
     }
+    AfterAll {
+        Remove-Item $testFilePath1,$testFilePath2 -ErrorAction silentlycontinue -force
+    }
 
-    #Cleanup
-    Remove-Item $testFilePath1,$testFilePath2 -Erroraction silentlycontinue -force
 }
 
 Describe 'HTTP Operational Tests - REQUIRES INTERNET CONNECTION!' {
-    $uri = "https://www.google.com"
-    $uriObjects = [uri]$uri,[uri]"https://www.facebook.com",[uri]"https://www.twitter.com"
-    It "Can fetch and parse $uri directly via the URI pipeline" {
+    BeforeAll {
+        $uri = 'https://www.google.com'
+        $uriObjects = [uri]$uri,[uri]'https://www.facebook.com',[uri]'https://www.twitter.com'
+    }
+    It 'Can fetch and parse $uri directly via the URI pipeline' {
         $result = ConvertFrom-HTML -uri $uri
         $result | Should -BeOfType HtmlAgilityPack.HTMLNode
         $result.innertext -match 'Google' | Should -Be $true
     }
-    It "Can parse $uri piped from Invoke-WebRequest" {
+    It 'Can parse $uri piped from Invoke-WebRequest' {
         $result = Invoke-WebRequest -verbose:$false $uri | ConvertFrom-HTML
         $result | Should -BeOfType HtmlAgilityPack.HTMLNode
         $result.innertext -match 'Google' | Should -Be $true
     }
-    It "Can parse multiple URI objects passed via the pipeline (Google,Facebook,Twiiter)" {
+    It 'Can parse multiple URI objects passed via the pipeline (Google,Facebook,Twiiter)' {
         $result = $uriObjects | ConvertFrom-HTML
         foreach ($resultItem in $result) {
             $resultItem | Should -BeOfType HtmlAgilityPack.HTMLNode
