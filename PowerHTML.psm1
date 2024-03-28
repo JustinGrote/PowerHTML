@@ -1,9 +1,9 @@
 #Get public and private function definition files.
-$PublicFunctions  = @( Get-ChildItem -Path $PSScriptRoot\Public\*.ps1 -ErrorAction SilentlyContinue )
-$PrivateFunctions = @( Get-ChildItem -Path $PSScriptRoot\Private\*.ps1 -ErrorAction SilentlyContinue )
+$PublicFunctions = @( Get-ChildItem -Path $PSScriptRoot\Public\*.ps1 -ErrorAction Ignore )
+$PrivateFunctions = @( Get-ChildItem -Path $PSScriptRoot\Private\*.ps1 -ErrorAction Ignore )
 
 #Get JSON settings files
-$ModuleSettings = @( Get-ChildItem -Path $PSScriptRoot\Settings\*.json -ErrorAction SilentlyContinue )
+$ModuleSettings = @( Get-ChildItem -Path $PSScriptRoot\Settings\*.json -ErrorAction Ignore )
 
 #Determine which assembly versions to load
 #See if .Net Standard 2.0 is available on the system and if not, load the legacy Net 4.0 library
@@ -40,23 +40,19 @@ if ($AssembliesToLoad) {
 }
 
 #Dot source the files
-Foreach($FunctionToImport in @($PublicFunctions + $PrivateFunctions))
-{
-    Try
-    {
+foreach ($FunctionToImport in @($PublicFunctions + $PrivateFunctions)) {
+    try {
         . $FunctionToImport.fullname
-    }
-    Catch
-    {
+    } catch {
         Write-Error -Message "Failed to import function $($import.fullname): $_"
     }
 }
 
 #Import Settings files as global objects based on their filename
-foreach ($ModuleSettingsItem in $ModuleSettings)
-{
+foreach ($ModuleSettingsItem in $ModuleSettings) {
     New-Variable -Name "$($ModuleSettingsItem.basename)" -Scope Global -Value (convertfrom-json (Get-Content -raw $ModuleSettingsItem.fullname)) -Force
 }
 
 #Export the public functions. This requires them to match the standard Noun-Verb powershell cmdlet format as a safety mechanism
-Export-ModuleMember -Function ($PublicFunctions.Basename | where {$PSitem -match '^\w+-\w+$'})
+# Export-ModuleMember -Function ($PublicFunctions.Basename | Where-Object { $PSitem -match '^\w+-\w+$' })
+Export-ModuleMember -Function *-*
