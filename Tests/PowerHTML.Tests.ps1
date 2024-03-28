@@ -78,20 +78,20 @@ Describe 'HTTP Operational Tests - REQUIRES INTERNET CONNECTION!' {
     It 'Can fetch and parse $uri directly via the URI pipeline' {
         $result = ConvertFrom-HTML -uri $uri
         $result | Should -BeOfType HtmlAgilityPack.HTMLNode
-        $result.innertext -match 'Google' | Should -Be $true
+        $result.innertext -match 'Google' | Should -BeTrue
     }
     It 'Can parse $uri piped from Invoke-WebRequest' {
         $result = Invoke-WebRequest -verbose:$false $uri | ConvertFrom-HTML
         $result | Should -BeOfType HtmlAgilityPack.HTMLNode
-        $result.innertext -match 'Google' | Should -Be $true
+        $result.innertext -match 'Google' | Should -BeTrue
     }
     It 'Can parse multiple URI objects passed via the pipeline (Google,Facebook,Twiiter)' {
         $result = $uriObjects | ConvertFrom-HTML
         foreach ($resultItem in $result) {
             $resultItem | Should -BeOfType HtmlAgilityPack.HTMLNode
         }
-        $result[0].innertext -match 'Google' | Should -Be $true
-        $result[1].innertext -match 'Facebook' | Should -Be $true
-        $result[2].innertext -match 'Twitter' | Should -Be $true
+        $result[0].innertext -match 'Google' | Should -BeTrue
+        $result[1].innertext -match 'Facebook' | Should -BeTrue
+        $result[2].innertext -match 'Twitter' | Should -BeTrue
     }
 }
