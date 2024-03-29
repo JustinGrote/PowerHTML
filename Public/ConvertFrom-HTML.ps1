@@ -84,7 +84,7 @@ function ConvertFrom-Html {
         switch ($PSCmdlet.ParameterSetName) {
             'String' {
                 $Content | ForEach-Object {
-                    Write-Verbose "Loading HTML $_"
+                    Write-Verbose "Loading HTML"
                     $html.LoadHtml($_)
                     if ($Raw) { $html } else { $html.DocumentNode }
                 }
@@ -105,7 +105,5 @@ function ConvertFrom-Html {
             }
         }
     }
-    end {
-        $web = $html = $site = $null
-    }
+
 }
