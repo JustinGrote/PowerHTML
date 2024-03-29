@@ -4,7 +4,7 @@ if ((get-item .).Name -match 'Tests') { Set-Location $PSScriptRoot\.. }
 Describe 'HTML Basic Conversion' {
     BeforeAll {
         if (-not (Get-Module PowerHTML)) {
-            Import-Module $PSScriptRoot\..\PowerHTML.psd1 -Force
+            Import-Module $PSScriptRoot\..\PowerHTML.psd1
         }
         $HTMLString = @'
 <!DOCTYPE html>
@@ -28,8 +28,8 @@ Describe 'HTML Basic Conversion' {
         $testFilePath1 = New-TemporaryFile
         $testFilePath2 = New-TemporaryFile
         $testFilePathAll = @($testFilePath1,$testFilePath2)
-        Add-Content -Path $testFilePath1 -Value $HTMLString
-        Add-Content -Path $testFilePath2 -Value $HTMLString2
+        Set-Content -Path $testFilePath1 -Value $HTMLString
+        Set-Content -Path $testFilePath2 -Value $HTMLString2
     }
     It 'Can convert an HTML string to a raw HTMLDocument via the pipeline' {
         $HTMLString | ConvertFrom-Html -Raw | Should -BeOfType HtmlAgilityPack.HTMLDocument
