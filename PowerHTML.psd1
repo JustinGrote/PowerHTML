@@ -12,7 +12,7 @@
 RootModule = 'PowerHTML.psm1'
 
 # Version number of this module.
-ModuleVersion = '0.0.1'
+ModuleVersion = '0.1.8'
 
 # Supported PSEditions
 # CompatiblePSEditions = @()
@@ -63,7 +63,7 @@ Description = 'Provides a wrapper for HTML Agility Pack for use where the IE HTM
 # TypesToProcess = @()
 
 # Format files (.ps1xml) to be loaded when importing this module
-FormatsToProcess = @('.\Types\*.ps1xml')
+FormatsToProcess = @('.\Types\HtmlAgilityPack.HtmlTextNode.ps1xml')
 
 # Modules to import as nested modules of the module specified in RootModule/ModuleToProcess
 # NestedModules = @()
@@ -120,5 +120,3 @@ PrivateData = @{
 # DefaultCommandPrefix = ''
 
 }
-
-

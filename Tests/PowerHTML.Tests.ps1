@@ -1,21 +1,12 @@
 #Move out of tests to the subdirectory of the modulepwd
-if ((get-item .).Name -match 'Tests') {Set-Location $PSScriptRoot\..}
+if ((get-item .).Name -match 'Tests') { Set-Location $PSScriptRoot\.. }
 
-$ModuleName = 'PowerHTML'
-$ModuleManifestName = "$ModuleName.psd1"
-$ModuleManifestPath = "$PSScriptRoot\..\$ModuleManifestName"
 Describe 'HTML Basic Conversion' {
-    $HTMLString = @"
-    <!DOCTYPE html>
-<html>
-<body>
-<h1>My First Heading</h1>
-<p>My first paragraph.</p>d
-</body>
-</html>
-"@
-
-    $HTMLString2 = @"
+    BeforeAll {
+        if (-not (Get-Module PowerHTML)) {
+            Import-Module $PSScriptRoot\..\PowerHTML.psd1
+        }
+        $HTMLString = @'
 <!DOCTYPE html>
 <html>
 <body>
@@ -23,73 +14,84 @@ Describe 'HTML Basic Conversion' {
 <p>My first paragraph.</p>
 </body>
 </html>
-"@
-
-    #Generate test files to a random path
-    $testFilePath1 = [System.IO.Path]::GetTempFileName()
-    $testFilePath2 = [System.IO.Path]::GetTempFileName()
-    $testFilePathAll = @($testFilePath1,$testFilePath2)
-    $HTMLString > $testFilePath1
-    $HTMLString > $testFilePath2
-
+'@
+        $HTMLString2 = @'
+<!DOCTYPE html>
+<html>
+<body>
+<h1>Heading 1</h1>
+<p>Paragraph 1.</p>
+</body>
+</html>
+'@
+        #Generate test files to a random path
+        $testFilePath1 = New-TemporaryFile
+        $testFilePath2 = New-TemporaryFile
+        $testFilePathAll = @($testFilePath1,$testFilePath2)
+        Set-Content -Path $testFilePath1 -Value $HTMLString
+        Set-Content -Path $testFilePath2 -Value $HTMLString2
+    }
     It 'Can convert an HTML string to a raw HTMLDocument via the pipeline' {
-        $HTMLString | ConvertFrom-HTML -Raw | Should Be HtmlAgilityPack.HTMLDocument
+        $HTMLString | ConvertFrom-Html -Raw | Should -BeOfType HtmlAgilityPack.HTMLDocument
     }
     It 'Can parse an HTML string to a HtmlNode via the pipeline' {
-        $HTMLString | ConvertFrom-HTML | Should Be HtmlAgilityPack.HTMLNode
+        $HTMLString | ConvertFrom-Html | Should -BeOfType HtmlAgilityPack.HTMLNode
     }
     It 'Can parse multiple HTML strings to HtmlNodes when passed via the pipeline as an array' {
         $result = $HTMLString,$HTMLString2 | ConvertFrom-HTML
-        $result.count | Should Be 2
+        $result.count | Should -Be 2
         foreach ($resultItem in $result) {
-            $resultItem | Should Be HtmlAgilityPack.HTMLNode
+            $resultItem | Should -BeOfType HtmlAgilityPack.HTMLNode
         }
     }
     It 'Can parse an HTML file' {
-        ConvertFrom-Html -Path $testFilePath1 | Should Be HtmlAgilityPack.HTMLNode
+        ConvertFrom-Html -Path $testFilePath1 | Should -BeOfType HtmlAgilityPack.HTMLNode
     }
     It 'Can parse multiple HTML files' {
         $result = ConvertFrom-Html -Path $testFilePath1,$testFilePath2
-        $result.count | Should Be 2
+        $result.count | Should -Be 2
         foreach ($resultItem in $result) {
-            $resultItem | Should Be HtmlAgilityPack.HTMLNode
+            $resultItem | Should -BeOfType HtmlAgilityPack.HTMLNode
         }
     }
     It 'Can parse an HTML file piped from Get-Item' {
-        Get-Item $testFilePath1 | ConvertFrom-Html | Should Be HtmlAgilityPack.HTMLNode
+        Get-Item $testFilePath1 | ConvertFrom-Html | Should -BeOfType HtmlAgilityPack.HTMLNode
     }
     It 'Can parse multiple HTML files piped from Get-Item' {
         $result = Get-Item $testFilePathAll | ConvertFrom-Html
-        $result.count | Should Be 2
+        $result.count | Should -Be 2
         foreach ($resultItem in $result) {
-            $resultItem | Should Be HtmlAgilityPack.HTMLNode
+            $resultItem | Should -BeOfType HtmlAgilityPack.HTMLNode
         }
     }
+    AfterAll {
+        Remove-Item $testFilePath1,$testFilePath2 -ErrorAction silentlycontinue -force
+    }
 
-    #Cleanup
-    Remove-Item $testFilePath1,$testFilePath2 -Erroraction silentlycontinue -force
 }
 
 Describe 'HTTP Operational Tests - REQUIRES INTERNET CONNECTION!' {
-    $uri = "https://www.google.com"
-    $uriObjects = [uri]$uri,[uri]"https://www.facebook.com",[uri]"https://www.twitter.com"
-    It "Can fetch and parse $uri directly via the URI pipeline" {
-        $result = ConvertFrom-HTML -uri $uri
-        $result | Should Be HtmlAgilityPack.HTMLNode
-        $result.innertext -match 'Google' | Should Be $true
+    BeforeAll {
+        $uri = 'https://www.google.com'
+        $uriObjects = [uri]$uri, [uri]'https://www.facebook.com', [uri]'https://www.x.com'
     }
-    It "Can parse $uri piped from Invoke-WebRequest" {
-        $result = Invoke-WebRequest -verbose:$false $uri | ConvertFrom-HTML
-        $result | Should Be HtmlAgilityPack.HTMLNode
-        $result.innertext -match 'Google' | Should Be $true
+    It 'Can fetch and parse $uri directly via the URI pipeline' {
+        $result = ConvertFrom-Html -URI $uri
+        $result | Should -BeOfType HtmlAgilityPack.HTMLNode
+        $result.innertext -match 'Google' | Should -BeTrue
     }
-    It "Can parse multiple URI objects passed via the pipeline (Google,Facebook,Twiiter)" {
-        $result = $uriObjects | ConvertFrom-HTML
+    It 'Can parse $uri piped from Invoke-WebRequest' {
+        $result = Invoke-WebRequest -Verbose:$false $uri | ConvertFrom-Html
+        $result | Should -BeOfType HtmlAgilityPack.HTMLNode
+        $result.innertext -match 'Google' | Should -BeTrue
+    }
+    It 'Can parse multiple URI objects passed via the pipeline (Google,Facebook,Twiiter)' {
+        $result = $uriObjects | ConvertFrom-Html
         foreach ($resultItem in $result) {
-            $resultItem | Should Be HtmlAgilityPack.HTMLNode
+            $resultItem | Should -BeOfType HtmlAgilityPack.HTMLNode
         }
-        $result[0].innertext -match 'Google' | Should Be $true
-        $result[1].innertext -match 'Facebook' | Should Be $true
-        $result[2].innertext -match 'Twitter' | Should Be $true
+        $result[0].innertext | Should -Match 'Google'
+        $result[1].innertext | Should -Match 'Facebook'
+        $result[2].innertext | Should -Match 'X\.com'
     }
 }

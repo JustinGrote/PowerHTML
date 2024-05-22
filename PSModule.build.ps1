@@ -105,33 +105,33 @@ Enter-Build {
         Get-Variable | select-object name, value, visibility | format-table -autosize | out-string | write-verbose
     }
 
-    #Register Nuget
-    if (!(get-packageprovider "Nuget" -ForceBootstrap -ErrorAction silentlycontinue)) {
-        write-verbose "Nuget Provider Not found. Fetching..."
-        Install-PackageProvider Nuget -forcebootstrap -scope currentuser @PassThruParams | out-string | write-verbose
-        write-verboseheader "Installed Nuget Provider Info"
-        Get-PackageProvider Nuget @PassThruParams | format-list | out-string | write-verbose
-    }
+    # #Register Nuget
+    # if (!(get-packageprovider "Nuget" -ForceBootstrap -ErrorAction silentlycontinue)) {
+    #     write-verbose "Nuget Provider Not found. Fetching..."
+    #     Install-PackageProvider Nuget -forcebootstrap -scope currentuser @PassThruParams | out-string | write-verbose
+    #     write-verboseheader "Installed Nuget Provider Info"
+    #     Get-PackageProvider Nuget @PassThruParams | format-list | out-string | write-verbose
+    # }
 
-    #Fix a bug with the Appveyor 2017 image having a broken nuget (points to v3 URL but installed packagemanagement doesn't query v3 correctly)
-    #Next command will add this back
-    if ($ENV:APPVEYOR -and ($ENV:APPVEYOR_BUILD_WORKER_IMAGE -eq 'Visual Studio 2017')) {
-        write-verbose "Detected Appveyor VS2017 Image, using v2 Nuget API"
-        UnRegister-PackageSource -Name nuget.org
-    }
+    # #Fix a bug with the Appveyor 2017 image having a broken nuget (points to v3 URL but installed packagemanagement doesn't query v3 correctly)
+    # #Next command will add this back
+    # if ($ENV:APPVEYOR -and ($ENV:APPVEYOR_BUILD_WORKER_IMAGE -eq 'Visual Studio 2017')) {
+    #     write-verbose "Detected Appveyor VS2017 Image, using v2 Nuget API"
+    #     UnRegister-PackageSource -Name nuget.org
+    # }
 
-    #Add the nuget repository so we can download things like GitVersion
-    if (!(Get-PackageSource "nuget.org" -erroraction silentlycontinue)) {
-        write-verbose "Registering nuget.org as package source"
-        Register-PackageSource -provider NuGet -name nuget.org -location http://www.nuget.org/api/v2 -Trusted @PassThruParams  | out-string | write-verbose
-    }
-    else {
-        $nugetOrgPackageSource = Set-PackageSource -name 'nuget.org' -Trusted @PassThruParams
-        if ($PassThruParams.Verbose) {
-            write-verboseheader "Nuget.Org Package Source Info "
-            $nugetOrgPackageSource | format-table | out-string | write-verbose
-        }
-    }
+    # #Add the nuget repository so we can download things like GitVersion
+    # if (!(Get-PackageSource "nuget.org" -erroraction silentlycontinue)) {
+    #     write-verbose "Registering nuget.org as package source"
+    #     Register-PackageSource -provider NuGet -name nuget.org -location http://www.nuget.org/api/v2 -Trusted @PassThruParams  | out-string | write-verbose
+    # }
+    # else {
+    #     $nugetOrgPackageSource = Set-PackageSource -name 'nuget.org' -Trusted @PassThruParams
+    #     if ($PassThruParams.Verbose) {
+    #         write-verboseheader "Nuget.Org Package Source Info "
+    #         $nugetOrgPackageSource | format-table | out-string | write-verbose
+    #     }
+    # }
 
     #Move to the Project Directory if we aren't there already
     Set-Location $buildRoot
@@ -476,7 +476,7 @@ task PublishPSGallery -if (-not $SkipPublish) {
 ### SuperTasks
 # These are the only supported items to run directly from Invoke-Build
 task Deploy PreDeploymentChecks,Package,PublishGitHubRelease,PublishPSGallery
-task Build Clean,CopyFilesToBuildDir,UpdateMetadata
+task Build Clean, CopyFilesToBuildDir
 task Test Pester
 
 #Default Task - Build, Test with Pester, Deploy
