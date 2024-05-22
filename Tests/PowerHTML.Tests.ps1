@@ -73,25 +73,25 @@ Describe 'HTML Basic Conversion' {
 Describe 'HTTP Operational Tests - REQUIRES INTERNET CONNECTION!' {
     BeforeAll {
         $uri = 'https://www.google.com'
-        $uriObjects = [uri]$uri,[uri]'https://www.facebook.com',[uri]'https://www.twitter.com'
+        $uriObjects = [uri]$uri, [uri]'https://www.facebook.com', [uri]'https://www.x.com'
     }
     It 'Can fetch and parse $uri directly via the URI pipeline' {
-        $result = ConvertFrom-HTML -uri $uri
+        $result = ConvertFrom-Html -URI $uri
         $result | Should -BeOfType HtmlAgilityPack.HTMLNode
         $result.innertext -match 'Google' | Should -BeTrue
     }
     It 'Can parse $uri piped from Invoke-WebRequest' {
-        $result = Invoke-WebRequest -verbose:$false $uri | ConvertFrom-HTML
+        $result = Invoke-WebRequest -Verbose:$false $uri | ConvertFrom-Html
         $result | Should -BeOfType HtmlAgilityPack.HTMLNode
         $result.innertext -match 'Google' | Should -BeTrue
     }
     It 'Can parse multiple URI objects passed via the pipeline (Google,Facebook,Twiiter)' {
-        $result = $uriObjects | ConvertFrom-HTML
+        $result = $uriObjects | ConvertFrom-Html
         foreach ($resultItem in $result) {
             $resultItem | Should -BeOfType HtmlAgilityPack.HTMLNode
         }
-        $result[0].innertext -match 'Google' | Should -BeTrue
-        $result[1].innertext -match 'Facebook' | Should -BeTrue
-        $result[2].innertext -match 'Twitter' | Should -BeTrue
+        $result[0].innertext | Should -Match 'Google'
+        $result[1].innertext | Should -Match 'Facebook'
+        $result[2].innertext | Should -Match 'X\.com'
     }
 }
