@@ -27,7 +27,7 @@ Author = 'Justin Grote'
 CompanyName = 'Unspecified'
 
 # Copyright statement for this module
-Copyright = '(c) 2018 Justin Grote. All rights reserved.'
+Copyright = '(c) 2024 Justin Grote. All rights reserved.'
 
 # Description of the functionality provided by this module
 Description = 'Provides a wrapper for HTML Agility Pack for use where the IE HTML DOM from Invoke-WebRequest is not available such as Powershell Core'
@@ -95,13 +95,13 @@ PrivateData = @{
     PSData = @{
 
         # Tags applied to this module. These help with module discovery in online galleries.
-        # Tags = @()
+        Tags = @('HTML','Invoke-WebRequest','Scraping','Agility','Pack','ScreenScraping')
 
         # A URL to the license for this module.
-        # LicenseUri = ''
+        LicenseUri = 'https://github.com/JustinGrote/PowerHTML/blob/master/LICENSE'
 
         # A URL to the main website for this project.
-        # ProjectUri = ''
+        ProjectUri = 'https://github.com/JustinGrote/PowerHTML'
 
         # A URL to an icon representing this module.
         # IconUri = ''
