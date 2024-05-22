@@ -52,7 +52,3 @@ foreach ($FunctionToImport in @($PublicFunctions + $PrivateFunctions)) {
 foreach ($ModuleSettingsItem in $ModuleSettings) {
     New-Variable -Name "$($ModuleSettingsItem.basename)" -Scope Global -Value (convertfrom-json (Get-Content -raw $ModuleSettingsItem.fullname)) -Force
 }
-
-#Export the public functions. This requires them to match the standard Noun-Verb powershell cmdlet format as a safety mechanism
-# Export-ModuleMember -Function ($PublicFunctions.Basename | Where-Object { $PSitem -match '^\w+-\w+$' })
-Export-ModuleMember -Function *-*
