@@ -476,7 +476,7 @@ task PublishPSGallery -if (-not $SkipPublish) {
 ### SuperTasks
 # These are the only supported items to run directly from Invoke-Build
 task Deploy PreDeploymentChecks,Package,PublishGitHubRelease,PublishPSGallery
-task Build Clean,CopyFilesToBuildDir,UpdateMetadata
+task Build Clean, CopyFilesToBuildDir
 task Test Pester
 
 #Default Task - Build, Test with Pester, Deploy
