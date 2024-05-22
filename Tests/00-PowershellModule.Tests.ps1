@@ -1,12 +1,14 @@
 #requires -module BuildHelpers
 
+#Must be done during discovery as contexts contain build info
+Set-BuildEnvironment -Force
+
 Describe 'Powershell Module' {
     BeforeAll {
         if (-not (Import-Module BuildHelpers -PassThru -Verbose:$false -ErrorAction silentlycontinue)) {
             Install-Module BuildHelpers -Scope currentuser -ErrorAction stop -Force
             Import-Module BuildHelpers -ErrorAction stop -Verbose:$false
         }
-        Set-BuildEnvironment -force
         $PSVersion = $PSVersionTable.PSVersion.Major
         $BuildOutputProject = Join-Path $env:BHBuildOutput $env:BHProjectName
         $ModuleManifestPath = Join-Path $BuildOutputProject '\*.psd1'
