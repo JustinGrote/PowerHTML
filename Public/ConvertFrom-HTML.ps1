@@ -1,5 +1,4 @@
-﻿
-function ConvertFrom-Html {
+﻿function ConvertFrom-Html {
     <#
     .SYNOPSIS
         Takes an HTML input and converts it to an HTMLAgilityPack htmlNode object that can be navigated using Linq
@@ -57,21 +56,25 @@ function ConvertFrom-Html {
     .NOTES
         General notes
     #>
-    [OutputType([HtmlAgilityPack.HtmlNode])]
-    [OutputType([HtmlAgilityPack.HtmlDocument])]
+    [OutputType([HtmlAgilityPack.HtmlNode], [HtmlAgilityPack.HtmlDocument])]
     [CmdletBinding(DefaultParameterSetName = 'String')]
     param(
-        #The HTML text to parse. Accepts multiple separate documents as an array. This also accepts pipeline from Invoke-WebRequest
+        #The HTML text to parse. Accepts multiple separate documents as an array.
         [Parameter(ParameterSetName = 'String', Mandatory, ValueFromPipeline, ValueFromPipelineByPropertyName, Position = 0)]
         [String[]] $Content,
 
         #The URI or URIs from which to retrieve content. This may be faster than using Invoke-WebRequest but is less flexible in the method of retrieval (for instance, no POST)
         [Parameter(ParameterSetName = 'URI', Mandatory, ValueFromPipeline, ValueFromPipelineByPropertyName, Position = 0)]
+        [Alias('URL')]
         [System.URI[]] $URI,
 
         #Path to file or files containing HTML content to convert. This accepts pipeline from Get-Childitem or Get-Item
         [Parameter(ParameterSetName = 'Path', Mandatory, ValueFromPipeline, ValueFromPipelineByPropertyName, Position = 0)]
         [System.IO.FileInfo[]] $Path,
+
+        #The web response object from Invoke-WebRequest. This is used to extract the content from the web response object
+        [Parameter(ParameterSetName = 'WebResponse', Mandatory, ValueFromPipeline, ValueFromPipelineByPropertyName, Position = 0)]
+        [Microsoft.PowerShell.Commands.WebResponseObject[]] $WebResponse,
 
         #Do not return the Linq documentnode, instead return the HTMLDocument object. This is useful if you want to do XPath queries instead of Linq queries
         [switch] $Raw
@@ -103,7 +106,13 @@ function ConvertFrom-Html {
                     if ($Raw) { $html } else { $html.DocumentNode }
                 }
             }
+            'WebResponse' {
+                $WebResponse | ForEach-Object {
+                    Write-Verbose "Loading WebResponse"
+                    $html.LoadHtml($_.Content)
+                    if ($Raw) { $html } else { $html.DocumentNode }
+                }
+            }
         }
     }
-
 }

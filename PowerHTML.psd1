@@ -15,7 +15,7 @@ RootModule = 'PowerHTML.psm1'
 ModuleVersion = '0.2.0'
 
 # Supported PSEditions
-# CompatiblePSEditions = @()
+CompatiblePSEditions = 'Core', 'Desktop'
 
 # ID used to uniquely identify this module
 GUID = '5be91c3d-59a7-469b-bca7-bdc619347b64'
@@ -33,7 +33,7 @@ Copyright = '(c) 2024 Justin Grote. All rights reserved.'
 Description = 'Provides a wrapper for HTML Agility Pack for use where the IE HTML DOM from Invoke-WebRequest is not available such as Powershell Core'
 
 # Minimum version of the Windows PowerShell engine required by this module
-# PowerShellVersion = ''
+PowerShellVersion = '5.1'
 
 # Name of the Windows PowerShell host required by this module
 # PowerShellHostName = ''
@@ -54,7 +54,7 @@ Description = 'Provides a wrapper for HTML Agility Pack for use where the IE HTM
 # RequiredModules = @()
 
 # Assemblies that must be loaded prior to importing this module
-#RequiredAssemblies = '.\lib\HtmlAgilityPack-1.7.0-netstandard2.dll'
+RequiredAssemblies = @('.\lib\HtmlAgilityPack-1.11.60-netstandard2.dll')
 
 # Script files (.ps1) that are run in the caller's environment prior to importing this module.
 # ScriptsToProcess = @()

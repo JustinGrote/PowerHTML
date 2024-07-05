@@ -94,4 +94,33 @@ Describe 'HTTP Operational Tests - REQUIRES INTERNET CONNECTION!' {
         $result[1].innertext | Should -Match 'Facebook'
         $result[2].innertext | Should -Match 'X\.com'
     }
+    It 'can parse special characters in HTML' {
+        # not sure how stable this site is, happy to change to a different source or if i could get the mock working properly.
+        $Result = Invoke-WebRequest -Uri "https://www.compart.com/en/unicode/U+00FC" | ConvertFrom-Html
+        $result | Should -BeOfType HtmlAgilityPack.HTMLNode
+        $Result.SelectNodes('//span[@class="box"]').InnerText | Should -Be ([char]0x00FC)
+    }
 }
+
+<#
+# couldnt get the proper mocked webresponse object to work
+Describe 'Testing Encoding' {
+    BeforeAll {
+        Add-Type -AssemblyName System.Net.Http
+        $RM = [System.Net.Http.HttpResponseMessage]::new()
+        $RM.StatusCode = 200
+        $RM.Content = [System.Net.Http.StringContent]::new('<html><body><span class="box">ü</span></body></html>')
+        $RM.Content.Headers.ContentType = [System.Net.Http.Headers.MediaTypeHeaderValue]::new('text/html')
+        $RM.Content.Headers.ContentType.CharSet = 'utf-8'
+        $Stream = $RM.Content.ReadAsStreamAsync().Result
+        $ct = [System.Threading.CancellationToken]::None
+        $ts = New-TimeSpan -Seconds 1
+        $wro = [Microsoft.PowerShell.Commands.WebResponseObject]::New($RM, $Stream, $ts, $ct)
+    }
+    It 'Can parse special characters in HTML' {
+        $Result = ConvertFrom-Html -WebResponse $webResponseObject
+        $result | Should -BeOfType HtmlAgilityPack.HTMLNode
+        $Result.SelectNodes('//span[@class="box"]').InnerText | Should -Be ([char]0x00FC)
+    }
+}
+#>
